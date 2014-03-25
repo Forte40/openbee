@@ -3,7 +3,7 @@ local chestSide = "top"
 local chestDir = "up"
 local analyzerDir = "east"
 
-local traitPriority = {"fertility", "speed", "nocturnal", "tolerantFlyer", "caveDwelling", "lifespan", "temperatureTolerance", "humidityTolerance", "effect", "flowerProvider", "territory"}
+local traitPriority = {"speciesChance", "fertility", "speed", "nocturnal", "tolerantFlyer", "caveDwelling", "lifespan", "temperatureTolerance", "humidityTolerance", "effect", "flowering", "flowerProvider", "territory"}
 
 local inv = peripheral.wrap(chestSide)
 local invSize = inv.getInventorySize()
@@ -70,8 +70,8 @@ function addOffspring(offspring, chance, parentss)
   end
 end
 
-addOffspring("Common", .15, choose({"Forest", "Meadows"}))
-addOffspring("Cultivated", .12, choose({"Common"}, {"Forest", "Meadows"}))
+addOffspring("Common", .15, choose({"Forest", "Meadows", "Modest"}))
+addOffspring("Cultivated", .12, choose({"Common"}, {"Forest", "Meadows", "Modest"}))
 addOffspring("Diligent", .10, {{"Cultivated", "Common"}})
 addOffspring("Unweary", .08, {{"Diligent", "Cultivated"}})
 addOffspring("Industrious", .08, {{"Unweary", "Diligent"}})
@@ -159,10 +159,114 @@ end
 
 function beeName(bee)
   if bee.beeInfo.active then
-    return bee.beeInfo.active.species.."-"..bee.beeInfo.inactive.species
+    return bee.slot .. "=" .. bee.beeInfo.active.species:sub(1,3) .. "-" ..
+                              bee.beeInfo.inactive.species:sub(1,3)
   else
-    return bee.beeInfo.displayName
+    return bee.slot .. "=" .. bee.beeInfo.displayName:sub(1,3)
   end
+end
+
+function makeNumberScorer(trait, default)
+  local function scorer(bee1, bee2)
+    local bee1score = default
+    local bee2score = default
+    if bee1.beeInfo.active then
+      bee1score = (bee1.beeInfo.active[trait] + bee1.beeInfo.inactive[trait]) / 2
+    end
+    if bee2.beeInfo.active then
+      bee2score = (bee2.beeInfo.active[trait] + bee2.beeInfo.inactive[trait]) / 2
+    end
+    return (bee1score + bee2score) / 2
+  end
+  return scorer
+end
+
+function makeBooleanScorer(trait)
+  local function scorer(bee1, bee2)
+    local score = 0
+    if bee1.beeInfo.active then
+      score = score + (bee1.beeInfo.active[trait] and 1 or 0) + (bee1.beeInfo.inactive[trait] and 1 or 0)
+    end
+    if bee2.beeInfo.active then
+      score = score + (bee2.beeInfo.active[trait] and 1 or 0) + (bee2.beeInfo.inactive[trait] and 1 or 0)
+    end
+    return score
+  end
+  return scorer
+end
+
+function makeTableScorer(trait, default, lookup)
+  local function scorer(bee1, bee2)
+    local bee1score = default
+    local bee2score = default
+    if bee1.beeInfo.active then
+      bee1score = (lookup[bee1.beeInfo.active[trait]] + lookup[bee1.beeInfo.inactive[trait]]) / 2
+    end
+    if bee2.beeInfo.active then
+      bee2score = (lookup[bee2.beeInfo.active[trait]] + lookup[bee2.beeInfo.inactive[trait]]) / 2
+    end
+    return (bee1score + bee2score) / 2
+  end
+  return scorer
+end
+
+local scoresTolerance = {
+  ["None"]   = 0,
+  ["Up 1"]   = 1,
+  ["Up 2"]   = 2,
+  ["Up 3"]   = 3,
+  ["Up 4"]   = 4,
+  ["Up 5"]   = 5,
+  ["Down 1"] = 1,
+  ["Down 2"] = 2,
+  ["Down 3"] = 3,
+  ["Down 4"] = 4,
+  ["Down 5"] = 5,
+  ["Both 1"] = 2,
+  ["Both 2"] = 4,
+  ["Both 3"] = 6,
+  ["Both 4"] = 8,
+  ["Both 5"] = 10
+}
+
+local scoresFlowerProvider = {
+  ["Rock"] = 3,
+  ["Flowers"] = 2,
+  ["Cacti"] = 1
+}
+
+local scoreFertility = makeNumberScorer("fertility", 1)
+local scoreFlowering = makeNumberScorer("flowering", 0)
+local scoreSpeed = makeNumberScorer("speed")
+local scoreLifespawn = makeNumberScorer("lifespan", 20)
+local scoreNocturnal = makeBooleanScorer("nocturnal")
+local scoreTolerantFlyer = makeBooleanScorer("tolerantFlyer")
+local scoreCaveDweling = makeBooleanScorer("caveDwelling")
+local scoreEffect = makeBooleanScorer("effect")
+local scoreTemperatureTolerance =  makeTableScorer("temperatureTolerance", 0, scoresTolerance)
+local scoreHumidityTolerance = makeTableScorer("humidityTolerance", 0, scoresTolerance)
+local scoreFlowerProvider = makeTableScorer("flowerProvider", 0, scoresFlowerProvider)
+local scoreTerritory = function(bee1, bee2)
+  local bee1score = 0
+  local bee2score = 0
+  if bee1.beeInfo.active then
+    bee1score = ((bee1.beeInfo.active.territory[1] * bee1.beeInfo.active.territory[2] * bee1.beeInfo.active.territory[3]) +
+                 (bee1.beeInfo.inactive.territory[1] * bee1.beeInfo.inactive.territory[2] * bee1.beeInfo.inactive.territory[3])) / 2
+  end
+  if bee2.beeInfo.active then
+    bee2score = ((bee2.beeInfo.active.territory[1] * bee2.beeInfo.active.territory[2] * bee2.beeInfo.active.territory[3]) +
+                 (bee2.beeInfo.inactive.territory[1] * bee2.beeInfo.inactive.territory[2] * bee2.beeInfo.inactive.territory[3])) / 2
+  end
+  return (bee1score + bee2score) / 2
+end
+
+function compareMates(a, b)
+  for i, trait in ipairs(traitPriority) do
+    if a[trait] ~= b[trait] then
+      return a[trait] > b[trait]
+    end
+  end
+  return true
 end
 
 -- selects best pair for target species
@@ -231,8 +335,31 @@ function selectPair(targetSpecies)
     end
   else
     local mates = choose(selectPrincesses, selectDrones)
+    local mates2 = {}
     for i, v in ipairs(mates) do
-      print(beeName(v[1]), beeName(v[2]), mutateChance(v[1], v[2], targetSpecies))
+      table.insert(mates2, {
+        ["princess"] = v[1],
+        ["drone"] = v[2],
+        ["speciesChance"] = mutateChance(v[1], v[2], targetSpecies),
+        ["fertility"] = scoreFertility(v[1], v[2]),
+        ["flowering"] = scoreFlowering(v[1], v[2]),
+        ["speed"] = scoreSpeed(v[1], v[2]),
+        ["lifespan"] = scoreLifespawn(v[1], v[2]),
+        ["nocturnal"] = scoreNocturnal(v[1], v[2]),
+        ["tolerantFlyer"] = scoreTolerantFlyer(v[1], v[2]),
+        ["caveDwelling"] = scoreCaveDweling(v[1], v[2]),
+        ["effect"] = scoreEffect(v[1], v[2]),
+        ["temperatureTolerance"] = scoreTemperatureTolerance(v[1], v[2]),
+        ["humidityTolerance"] = scoreHumidityTolerance(v[1], v[2]),
+        ["flowerProvider"] = scoreFlowerProvider(v[1], v[2]),
+        ["territory"] = scoreTerritory(v[1], v[2]),
+      })
+    end
+    table.sort(mates2, compareMates)
+    for i, parents in ipairs(mates2) do
+      print(beeName(parents.princess), " ", beeName(parents.drone), " ", parents.speciesChance, " ", parents.fertility, " ",
+            parents.flowering, " ", parents.nocturnal, " ", parents.tolerantFlyer, " ", parents.caveDwelling, " ",
+            parents.lifespan, " ", parents.temperatureTolerance, " ", parents.humidityTolerance)
     end
   end
 end
