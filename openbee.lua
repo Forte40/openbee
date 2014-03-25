@@ -1,12 +1,15 @@
-local apiarySide = "right"
+local apiarySide = "left"
 local chestSide = "top"
 local chestDir = "up"
 local analyzerDir = "east"
+local productDir = "west"
 
 local traitPriority = {"speciesChance", "fertility", "speed", "nocturnal", "tolerantFlyer", "caveDwelling", "lifespan", "temperatureTolerance", "humidityTolerance", "effect", "flowering", "flowerProvider", "territory"}
 
 local inv = peripheral.wrap(chestSide)
 local invSize = inv.getInventorySize()
+
+local apiary = peripheral.wrap(apiarySide)
 
 local bees = {}
 local princesses = {}
@@ -42,7 +45,7 @@ end
 
 local mutations = {}
 
-function addMutateTo(parent1, parent2, offspring, chance)
+function addMutateTo(parent1, parent2, offspring, chance, specialConditions)
   if mutations[parent1] then
     if mutations[parent1].mutateTo[offspring] then
       mutations[parent1].mutateTo[offspring][parent2] = chance
@@ -52,14 +55,17 @@ function addMutateTo(parent1, parent2, offspring, chance)
   else
     mutations[parent1] = {
       mutateTo = {[offspring]={[parent2] = chance}},
-      mutateFrom = {}
+      mutateFrom = {},
+      specialConditions = {}
     }
   end
   if mutations[offspring] then
     table.insert(mutations[offspring].mutateFrom, {parent1, parent2})
+    mutations[offspring].specialConditions = specialConditions
   else
     mutations[offspring] = {mutateFrom = {{parent1, parent2}},
-                            mutateTo = {}}
+                            mutateTo = {},
+                            specialConditions = specialConditions}
   end
 end
 
@@ -70,40 +76,111 @@ function addOffspring(offspring, chance, parentss)
   end
 end
 
-addOffspring("Common", .15, choose({"Forest", "Meadows", "Modest"}))
-addOffspring("Cultivated", .12, choose({"Common"}, {"Forest", "Meadows", "Modest"}))
-addOffspring("Diligent", .10, {{"Cultivated", "Common"}})
-addOffspring("Unweary", .08, {{"Diligent", "Cultivated"}})
-addOffspring("Industrious", .08, {{"Unweary", "Diligent"}})
-addOffspring("Noble", .10, {{"Cultivated", "Common"}})
-addOffspring("Majestic", .08, {{"Noble", "Cultivated"}})
-addOffspring("Imperial", .08, {{"Majestic", "Noble"}})
+-- build mutation graph
+for _, mut in pairs(apiary.getBeeBreedingData()) do
+  addMutateTo(mut.allele1, mut.allele2, mut.result, mut.chance, mut.specialConditions)
+  addMutateTo(mut.allele2, mut.allele1, mut.result, mut.chance, mut.specialConditions)
+end
 
 function catalogBees()
   bees = {}
   princesses = {}
   drones = {}
   queens = {}
+  inv.condenseItems()
   print(string.format("scanning %d slots", invSize))
-  for i = 1, invSize do
-    local bee = inv.getStackInSlot(i)
+  for slot = 1, invSize do
+    local bee = inv.getStackInSlot(slot)
     if bee ~= nil then
-      bee.slot = i
-      bees[i] = bee
-      if bee.id == 13340 then -- drones
+      if bee.beeInfo ~= nil and bee.beeInfo.isAnalyzed == false then
+        analyzeBee(slot)
+        bee = inv.getStackInSlot(slot)
+      end
+      bee.slot = slot
+      bees[slot] = bee
+      if bee.rawName == "item.beedronege" then -- drones
         table.insert(drones, bee)
-      elseif bee.id == 13341 then -- princess
+      elseif bee.rawName == "item.beeprincessge" then -- princess
         table.insert(princesses, bee)
       elseif bee.id == 13339 then -- queens
         table.insert(queens, bee)
       else -- error
-        print(string.format("non-bee item in slot %d", i))
+        print(string.format("non-bee item in slot %d", slot))
       end
     end
   end
   print(string.format("found %d queens, %d princesses, %d drones",
       #queens, #princesses, #drones))
 end
+
+-- apiary functions
+
+function clearApiary()
+  local beeCount = 0
+  local invSlot = 1
+  for slot = 3, 9 do
+    local stuff = apiary.getStackInSlot(slot)
+    if stuff ~= nil then
+      while inv.getStackInSlot(invSlot) ~= nil do
+        invSlot = invSlot + 1
+      end
+      if stuff.rawName == "item.beedronege" or stuff.rawName == "item.beeprincessge" then
+        beeCount = beeCount + 1
+        apiary.pushItem(chestDir, slot, 64, invSlot)
+      else
+        apiary.pushItem(productDir, slot, 64, invSlot)
+      end
+    end
+  end
+  return beeCount
+end
+
+function clearAnalyzer()
+  local invSlot = 1
+  for analyzerSlot = 9, 12 do
+    while inv.getStackInSlot(invSlot) ~= nil do
+      invSlot = invSlot + 1
+    end
+    inv.pullItem(analyzerDir, analyzerSlot, 64, invSlot)
+  end
+end
+
+function analyzeBee(slot)
+  clearAnalyzer()
+  write("analyzing bee ")
+  write(slot)
+  inv.pushItem(analyzerDir, slot, 64, 3)
+  while inv.pullItem(analyzerDir, 9, 64, slot) == 0 do
+    sleep(1)
+    write(".")
+  end
+  print()
+  printBee(inv.getStackInSlot(slot))
+end
+
+function waitApiary()
+  write("waiting for apiary")
+  while apiary.getStackInSlot(1) ~= nil or apiary.getStackInSlot(2) ~= nil do
+    write(".")
+    sleep(5)
+    if clearApiary() > 0 then
+      -- breeding cycle done
+      break
+    end
+  end
+  clearApiary()
+  print()
+end
+
+function breedBees(princess, drone)
+  clearApiary()
+  waitApiary()
+  apiary.pullItem(chestDir, princess.slot, 1, 1)
+  apiary.pullItem(chestDir, drone.slot, 1, 2)
+  waitApiary()
+end
+
+-- scoring functions
 
 function canMutateTo(bee, targetSpecies)
   if bee.beeInfo.active then
@@ -126,10 +203,10 @@ end
 function mutationChance(species1, species2, targetSpecies)
   local chance = {}
   if species1 == species2 then
-    chance[species1] = 1.0
+    chance[species1] = 100
   else
-    chance[species1] = 0.5
-    chance[species2] = 0.5
+    chance[species1] = 50
+    chance[species2] = 50
   end
   for species, mutates in pairs(mutations[species1].mutateTo) do
     local mutateChance = mutates[species2]
@@ -163,6 +240,31 @@ function beeName(bee)
                               bee.beeInfo.inactive.species:sub(1,3)
   else
     return bee.slot .. "=" .. bee.beeInfo.displayName:sub(1,3)
+  end
+end
+
+function printBee(bee)
+  if bee.beeInfo.active then
+    local active = bee.beeInfo.active
+    local inactive = bee.beeInfo.inactive
+    if active.species ~= inactive.species then
+      write(string.format("%s-%s", active.species, inactive.species))
+    else
+      write(active.species)
+    end
+    if bee.rawName == "item.beedronege" then
+      write(" Drone")
+    elseif bee.rawName == "item.beeprincessge" then
+      write(" Princess")
+    else
+      write(" Queen")
+    end
+    write((active.nocturnal and " Nocturnal" or " "))
+    write((active.tolerantFlyer and " Flyer" or " "))
+    write((active.caveDwelling and " Cave" or " "))
+    print()
+    print(string.format("Fert: %d  Speed: %d  Lifespan: %d", active.fertility, active.speed, active.lifespan))
+  else
   end
 end
 
@@ -273,6 +375,9 @@ end
 --   or initiates breeding of lower species
 function selectPair(targetSpecies)
   print("targetting "..targetSpecies)
+  for _, s in ipairs(mutations[targetSpecies].specialConditions) do
+    print("    ", s)
+  end
   local selectPrincesses = {}
   local princessSpecies = {}
   for i, bee in ipairs(princesses) do
@@ -307,15 +412,23 @@ function selectPair(targetSpecies)
         princessSpecies[parents[2]] = true
       end
     end
-    print("need princess of type ", textutils.serialize(princessSpecies))
+    write("need princess of type:")
     for species, _ in pairs(princessSpecies) do
-      selectPair(species)
-      break
+      write(" ")
+      write(species)
     end
+    print()
+    for species, _ in pairs(princessSpecies) do
+      local mates = selectPair(species)
+      if mates ~= nil then
+        return mates
+      end
+    end
+    return nil
   elseif #selectDrones == 0 then
     print("missing drone")
     if #selectPrincesses > 0 then
-      for i, species in ipairs(selectPrincesses) do
+      for i, species in ipairs(princessSpecies) do
         for j, parents in ipairs(mutations[targetSpecies].mutateFrom) do
           if species == parents[1] then
             droneSpecies[parents[2]] = true
@@ -328,11 +441,19 @@ function selectPair(targetSpecies)
         droneSpecies[parents[2]] = true
       end
     end
-    print("need drone of type ", textutils.serialize(princessSpecies))
+    write("need drone of type:")
     for species, _ in pairs(droneSpecies) do
-      selectPair(species)
-      break
+      write(" ")
+      write(species)
     end
+    print()
+    for species, _ in pairs(droneSpecies) do
+      local mates = selectPair(species)
+      if mates ~= nil then
+        return mates
+      end
+    end
+    return nil
   else
     local mates = choose(selectPrincesses, selectDrones)
     local mates2 = {}
@@ -356,13 +477,27 @@ function selectPair(targetSpecies)
       })
     end
     table.sort(mates2, compareMates)
-    for i, parents in ipairs(mates2) do
+    for i = #mates2, 1, -1 do
+      local parents = mates2[i]
       print(beeName(parents.princess), " ", beeName(parents.drone), " ", parents.speciesChance, " ", parents.fertility, " ",
             parents.flowering, " ", parents.nocturnal, " ", parents.tolerantFlyer, " ", parents.caveDwelling, " ",
             parents.lifespan, " ", parents.temperatureTolerance, " ", parents.humidityTolerance)
     end
+    return mates2[1]
   end
 end
+
+function isPureBred(bee1, bee2)
+  if bee1.beeInfo.active and bee2.beeInfo.active then
+    if bee1.beeInfo.active.species == bee1.beeInfo.inactive.species and
+        bee2.beeInfo.active.species == bee2.beeInfo.inactive.species and
+        bee1.beeInfo.active.species == bee2.beeInfo.active.species then
+      return true
+    end
+  end
+  return false
+end
+
 
 local tArgs = { ... }
 if #tArgs ~= 1 then
@@ -371,4 +506,19 @@ if #tArgs ~= 1 then
 end
 
 catalogBees()
-selectPair(tArgs[1])
+while true do
+  local mates = selectPair(tArgs[1])
+  if mates ~= nil then
+    if isPureBred(mates.princess, mates.drone) then
+      break
+    else
+      breedBees(mates.princess, mates.drone)
+      catalogBees()
+    end
+  else
+    write("Please add more bees and press [Enter]")
+    io.read("*l")
+    catalogBees()
+  end
+end
+print("Bees are purebred")
