@@ -2,7 +2,6 @@ local apiarySide = "left"
 local chestSide = "top"
 local chestDir = "up"
 local analyzerDir = "east"
-local productDir = "west"
 
 local traitPriority = {"speciesChance", "fertility", "speed", "nocturnal", "tolerantFlyer", "caveDwelling", "lifespan", "temperatureTolerance", "humidityTolerance", "effect", "flowering", "flowerProvider", "territory"}
 
@@ -11,11 +10,11 @@ local invSize = inv.getInventorySize()
 
 local apiary = peripheral.wrap(apiarySide)
 
-local bees = {}
 local princesses = {}
+local princessesBySpecies = {}
 local drones = {}
+local dronesBySpecies = {}
 local queens = {}
-
 
 -- utility functions
 
@@ -82,10 +81,26 @@ for _, mut in pairs(apiary.getBeeBreedingData()) do
   addMutateTo(mut.allele2, mut.allele1, mut.result, mut.chance, mut.specialConditions)
 end
 
+function addBySpecies(beesBySpecies, bee)
+  if beesBySpecies[bee.beeInfo.active.species] == nil then
+    beesBySpecies[bee.beeInfo.active.species] = {bee}
+  else
+    table.insert(beesBySpecies[bee.beeInfo.active.species], bee)
+  end
+  if bee.beeInfo.inactive.species ~= bee.beeInfo.active.species then
+    if beesBySpecies[bee.beeInfo.inactive.species] == nil then
+      beesBySpecies[bee.beeInfo.inactive.species] = {bee}
+    else
+      table.insert(beesBySpecies[bee.beeInfo.inactive.species], bee)
+    end
+  end
+end
+
 function catalogBees()
-  bees = {}
   princesses = {}
+  princessesBySpecies = {}
   drones = {}
+  dronesBySpecies = {}
   queens = {}
   inv.condenseItems()
   print(string.format("scanning %d slots", invSize))
@@ -97,15 +112,14 @@ function catalogBees()
         bee = inv.getStackInSlot(slot)
       end
       bee.slot = slot
-      bees[slot] = bee
       if bee.rawName == "item.beedronege" then -- drones
         table.insert(drones, bee)
+        addBySpecies(dronesBySpecies, bee)
       elseif bee.rawName == "item.beeprincessge" then -- princess
         table.insert(princesses, bee)
+        addBySpecies(princessesBySpecies, bee)
       elseif bee.id == 13339 then -- queens
         table.insert(queens, bee)
-      else -- error
-        print(string.format("non-bee item in slot %d", slot))
       end
     end
   end
@@ -128,7 +142,21 @@ function clearApiary()
         beeCount = beeCount + 1
         apiary.pushItem(chestDir, slot, 64, invSlot)
       else
-        apiary.pushItem(productDir, slot, 64, invSlot)
+        local found = false
+        local freeSlot = 0
+        for productSlot = 1, invSize do
+          local item = inv.getStackInSlot(productSlot)
+          if item == nil then
+            freeSlot = productSlot
+          elseif stuff.name == item.name and (item.maxSize - item.qty) >= stuff.qty then
+            apiary.pushItem(chestDir, slot, 64, productSlot)
+            found = true
+            break
+          end
+        end
+        if not found then
+          apiary.pushItem(chestDir, slot, 64, freeSlot)
+        end
       end
     end
   end
@@ -140,6 +168,9 @@ function clearAnalyzer()
   for analyzerSlot = 9, 12 do
     while inv.getStackInSlot(invSlot) ~= nil do
       invSlot = invSlot + 1
+      if invSlot > invSize then
+        error("chest is full")
+      end
     end
     inv.pullItem(analyzerDir, analyzerSlot, 64, invSlot)
   end
@@ -332,8 +363,10 @@ local scoresTolerance = {
 }
 
 local scoresFlowerProvider = {
-  ["Rock"] = 3,
-  ["Flowers"] = 2,
+  ["None"] = 5,
+  ["Rock"] = 4,
+  ["Flowers"] = 3,
+  ["Mushroom"] = 2,
   ["Cacti"] = 1
 }
 
@@ -371,6 +404,14 @@ function compareMates(a, b)
   return true
 end
 
+function getMate(beeSpecies, targetSpecies)
+  for i, parents in ipairs(mutations[targetSpecies].mutateFrom) do
+    if beeSpecies == parents[1] then
+      return parents[2]
+    end
+  end
+end
+
 -- selects best pair for target species
 --   or initiates breeding of lower species
 function selectPair(targetSpecies)
@@ -378,87 +419,12 @@ function selectPair(targetSpecies)
   for _, s in ipairs(mutations[targetSpecies].specialConditions) do
     print("    ", s)
   end
-  local selectPrincesses = {}
-  local princessSpecies = {}
-  for i, bee in ipairs(princesses) do
-    local species = canMutateTo(bee, targetSpecies)
-    if species ~= nil then
-      table.insert(selectPrincesses, bee)
-      table.insert(princessSpecies, species)
-    end
-  end
-  local selectDrones = {}
-  local droneSpecies = {}
-  for i, bee in ipairs(drones) do
-    local species = canMutateTo(bee, targetSpecies)
-    if species ~= nil then
-      table.insert(selectDrones, bee)
-      table.insert(droneSpecies, species)
-    end
-  end
-  if #selectPrincesses == 0 then
-    print("missing princess")
-    if #droneSpecies > 0 then
-      for i, species in ipairs(droneSpecies) do
-        for j, parents in ipairs(mutations[targetSpecies].mutateFrom) do
-          if species == parents[1] then
-            princessSpecies[parents[2]] = true
-          end
-        end
-      end
-    else
-      for i, parents in ipairs(mutations[targetSpecies].mutateFrom) do
-        princessSpecies[parents[1]] = true
-        princessSpecies[parents[2]] = true
-      end
-    end
-    write("need princess of type:")
-    for species, _ in pairs(princessSpecies) do
-      write(" ")
-      write(species)
-    end
-    print()
-    for species, _ in pairs(princessSpecies) do
-      local mates = selectPair(species)
-      if mates ~= nil then
-        return mates
-      end
-    end
-    return nil
-  elseif #selectDrones == 0 then
-    print("missing drone")
-    if #selectPrincesses > 0 then
-      for i, species in ipairs(princessSpecies) do
-        for j, parents in ipairs(mutations[targetSpecies].mutateFrom) do
-          if species == parents[1] then
-            droneSpecies[parents[2]] = true
-          end
-        end
-      end
-    else
-      for i, parents in ipairs(mutations[targetSpecies].mutateFrom) do
-        droneSpecies[parents[1]] = true
-        droneSpecies[parents[2]] = true
-      end
-    end
-    write("need drone of type:")
-    for species, _ in pairs(droneSpecies) do
-      write(" ")
-      write(species)
-    end
-    print()
-    for species, _ in pairs(droneSpecies) do
-      local mates = selectPair(species)
-      if mates ~= nil then
-        return mates
-      end
-    end
-    return nil
-  else
-    local mates = choose(selectPrincesses, selectDrones)
-    local mates2 = {}
-    for i, v in ipairs(mates) do
-      table.insert(mates2, {
+  local mateCombos = choose(princesses, drones)
+  local mates = {}
+  for i, v in ipairs(mateCombos) do
+    local chance = mutateChance(v[1], v[2], targetSpecies)
+    if chance > 0 then
+      table.insert(mates, {
         ["princess"] = v[1],
         ["drone"] = v[2],
         ["speciesChance"] = mutateChance(v[1], v[2], targetSpecies),
@@ -476,28 +442,55 @@ function selectPair(targetSpecies)
         ["territory"] = scoreTerritory(v[1], v[2]),
       })
     end
-    table.sort(mates2, compareMates)
-    for i = #mates2, 1, -1 do
-      local parents = mates2[i]
+  end
+  if #mates > 0 then
+    table.sort(mates, compareMates)
+    for i = math.min(#mates, 10), 1, -1 do
+      local parents = mates[i]
       print(beeName(parents.princess), " ", beeName(parents.drone), " ", parents.speciesChance, " ", parents.fertility, " ",
             parents.flowering, " ", parents.nocturnal, " ", parents.tolerantFlyer, " ", parents.caveDwelling, " ",
             parents.lifespan, " ", parents.temperatureTolerance, " ", parents.humidityTolerance)
     end
-    return mates2[1]
+    return mates[1]
+  else
+    -- attempt lower tier bee
+    print("try lower tier of "..targetSpecies)
+    local parentss = apiary.getBeeParents(targetSpecies)
+    if #parentss > 0 then
+      table.sort(parentss, function(a, b) return a.chance > b.chance end)
+      local trySpecies = {}
+      for i, parents in ipairs(parentss) do
+        if princessesBySpecies[parents.allele2] == nil and trySpecies[parents.allele2] == nil then
+          table.insert(trySpecies, parents.allele2)
+          trySpecies[parents.allele2] = true
+        end
+        if princessesBySpecies[parents.allele1] == nil and trySpecies[parents.allele1] == nil then
+          table.insert(trySpecies, parents.allele1)
+          trySpecies[parents.allele1] = true
+        end
+      end
+      for _, species in ipairs(trySpecies) do
+        local mates = selectPair(species)
+        if mates ~= nil then
+          return mates
+        end
+      end
+    end
+    return nil
   end
 end
 
-function isPureBred(bee1, bee2)
+function isPureBred(bee1, bee2, targetSpecies)
   if bee1.beeInfo.active and bee2.beeInfo.active then
     if bee1.beeInfo.active.species == bee1.beeInfo.inactive.species and
         bee2.beeInfo.active.species == bee2.beeInfo.inactive.species and
-        bee1.beeInfo.active.species == bee2.beeInfo.active.species then
+        bee1.beeInfo.active.species == bee2.beeInfo.active.species and
+        (targetSpecies == nil or bee1.beeInfo.active.species == targetSpecies) then
       return true
     end
   end
   return false
 end
-
 
 local tArgs = { ... }
 if #tArgs ~= 1 then
@@ -505,11 +498,13 @@ if #tArgs ~= 1 then
   return
 end
 
+clearApiary()
+clearAnalyzer()
 catalogBees()
 while true do
   local mates = selectPair(tArgs[1])
   if mates ~= nil then
-    if isPureBred(mates.princess, mates.drone) then
+    if isPureBred(mates.princess, mates.drone, tArgs[1]) then
       break
     else
       breedBees(mates.princess, mates.drone)
