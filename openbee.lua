@@ -15,6 +15,8 @@ local princessesBySpecies = {}
 local drones = {}
 local dronesBySpecies = {}
 local queens = {}
+local referenceDronesBySpecies = {}
+local referencePrincessesBySpecies = {}
 
 -- utility functions
 
@@ -44,7 +46,7 @@ end
 
 local mutations = {}
 
-function addMutateTo(parent1, parent2, offspring, chance, specialConditions)
+function addMutateTo(parent1, parent2, offspring, chance)
   if mutations[parent1] then
     if mutations[parent1].mutateTo[offspring] then
       mutations[parent1].mutateTo[offspring][parent2] = chance
@@ -53,33 +55,158 @@ function addMutateTo(parent1, parent2, offspring, chance, specialConditions)
     end
   else
     mutations[parent1] = {
-      mutateTo = {[offspring]={[parent2] = chance}},
-      mutateFrom = {},
-      specialConditions = {}
+      mutateTo = {[offspring]={[parent2] = chance}}
     }
-  end
-  if mutations[offspring] then
-    table.insert(mutations[offspring].mutateFrom, {parent1, parent2})
-    mutations[offspring].specialConditions = specialConditions
-  else
-    mutations[offspring] = {mutateFrom = {{parent1, parent2}},
-                            mutateTo = {},
-                            specialConditions = specialConditions}
-  end
-end
-
-function addOffspring(offspring, chance, parentss)
-  for i, parents in ipairs(parentss) do
-    addMutateTo(parents[1], parents[2], offspring, chance)
-    addMutateTo(parents[2], parents[1], offspring, chance)
   end
 end
 
 -- build mutation graph
 for _, mut in pairs(apiary.getBeeBreedingData()) do
-  addMutateTo(mut.allele1, mut.allele2, mut.result, mut.chance, mut.specialConditions)
-  addMutateTo(mut.allele2, mut.allele1, mut.result, mut.chance, mut.specialConditions)
+  addMutateTo(mut.allele1, mut.allele2, mut.result, mut.chance)
+  addMutateTo(mut.allele2, mut.allele1, mut.result, mut.chance)
 end
+
+-- percent chance of 2 species turning into a target species
+function mutateSpeciesChance(species1, species2, targetSpecies)
+  local chance = {}
+  if species1 == species2 then
+    chance[species1] = 100
+  else
+    chance[species1] = 50
+    chance[species2] = 50
+  end
+  for species, mutates in pairs(mutations[species1].mutateTo) do
+    local mutateChance = mutates[species2]
+    if mutateChance ~= nil then
+      chance[species] = mutateChance
+      chance[species1] = chance[species1] - mutateChance / 2
+      chance[species2] = chance[species2] - mutateChance / 2
+    end
+  end
+  return chance[targetSpecies] or 0.0
+end
+
+-- percent chance of 2 bees turning into target species
+function mutateBeeChance(princess, drone, targetSpecies)
+  if princess.beeInfo.active then
+    if drone.beeInfo.active then
+      return (mutateSpeciesChance(princess.beeInfo.active.species, drone.beeInfo.active.species, targetSpecies) / 4
+             +mutateSpeciesChance(princess.beeInfo.inactive.species, drone.beeInfo.active.species, targetSpecies) / 4
+             +mutateSpeciesChance(princess.beeInfo.active.species, drone.beeInfo.inactive.species, targetSpecies) / 4
+             +mutateSpeciesChance(princess.beeInfo.inactive.species, drone.beeInfo.inactive.species, targetSpecies) / 4)
+    end
+  elseif drone.beeInfo.active then
+  else
+    return mutateSpeciesChance(princess.beeInfo.displayName, drone.beeInfo.displayName, targetSpecies)
+  end
+end
+
+-- scoring functions
+
+function makeNumberScorer(trait, default)
+  local function scorer(bee)
+    if bee.beeInfo.active then
+      return (bee.beeInfo.active[trait] + bee.beeInfo.inactive[trait]) / 2
+    else
+      return default
+    end
+  end
+  return scorer
+end
+
+function makeBooleanScorer(trait)
+  local function scorer(bee)
+    if bee.beeInfo.active then
+      return ((bee.beeInfo.active[trait] and 1 or 0) + (bee.beeInfo.inactive[trait] and 1 or 0)) / 2
+    else
+      return 0
+    end
+  end
+  return scorer
+end
+
+function makeTableScorer(trait, default, lookup)
+  local function scorer(bee)
+    if bee.beeInfo.active then
+      return (lookup[bee.beeInfo.active[trait]] + lookup[bee.beeInfo.inactive[trait]]) / 2
+    else
+      return default
+    end
+  end
+  return scorer
+end
+
+local scoresTolerance = {
+  ["None"]   = 0,
+  ["Up 1"]   = 1,
+  ["Up 2"]   = 2,
+  ["Up 3"]   = 3,
+  ["Up 4"]   = 4,
+  ["Up 5"]   = 5,
+  ["Down 1"] = 1,
+  ["Down 2"] = 2,
+  ["Down 3"] = 3,
+  ["Down 4"] = 4,
+  ["Down 5"] = 5,
+  ["Both 1"] = 2,
+  ["Both 2"] = 4,
+  ["Both 3"] = 6,
+  ["Both 4"] = 8,
+  ["Both 5"] = 10
+}
+
+local scoresFlowerProvider = {
+  ["None"] = 5,
+  ["Rocks"] = 4,
+  ["Flowers"] = 3,
+  ["Mushroom"] = 2,
+  ["Cacti"] = 1,
+  ["Jungle"] = 0
+}
+
+local scoring = {
+  ["fertility"] = makeNumberScorer("fertility", 1),
+  ["flowering"] = makeNumberScorer("flowering", 1),
+  ["speed"] = makeNumberScorer("speed", 1),
+  ["lifespan"] = makeNumberScorer("lifespan", 1),
+  ["nocturnal"] = makeBooleanScorer("nocturnal"),
+  ["tolerantFlyer"] = makeBooleanScorer("tolerantFlyer"),
+  ["caveDwelling"] = makeBooleanScorer("caveDwelling"),
+  ["effect"] = makeBooleanScorer("effect"),
+  ["temperatureTolerance"] = makeTableScorer("temperatureTolerance", 0, scoresTolerance),
+  ["humidityTolerance"] = makeTableScorer("humidityTolerance", 0, scoresTolerance),
+  ["flowerProvider"] = makeTableScorer("flowerProvider", 0, scoresFlowerProvider),
+  ["territory"] = function(bee)
+    if bee.beeInfo.active then
+      return ((bee.beeInfo.active.territory[1] * bee.beeInfo.active.territory[2] * bee.beeInfo.active.territory[3]) +
+                   (bee.beeInfo.inactive.territory[1] * bee.beeInfo.inactive.territory[2] * bee.beeInfo.inactive.territory[3])) / 2
+    else
+      return 0
+    end
+  end
+}
+
+function compareBees(a, b)
+  for trait, scorer in pairs(scoring) do
+    local aScore = scorer(a)
+    local bScore = scorer(b)
+    if aScore ~= bScore then
+      return aScore > bScore
+    end
+  end
+  return true
+end
+
+function compareMates(a, b)
+  for i, trait in ipairs(traitPriority) do
+    if a[trait] ~= b[trait] then
+      return a[trait] > b[trait]
+    end
+  end
+  return true
+end
+
+-- inventory functions
 
 function addBySpecies(beesBySpecies, bee)
   if beesBySpecies[bee.beeInfo.active.species] == nil then
@@ -102,16 +229,64 @@ function catalogBees()
   drones = {}
   dronesBySpecies = {}
   queens = {}
+  referenceDronesBySpecies = {}
+  referencePrincessesBySpecies = {}
+
   inv.condenseItems()
   print(string.format("scanning %d slots", invSize))
+  local referenceBeeCount = 0
+  local freeSlot = 0
   for slot = 1, invSize do
     local bee = inv.getStackInSlot(slot)
     if bee ~= nil then
       if bee.beeInfo ~= nil and bee.beeInfo.isAnalyzed == false then
-        analyzeBee(slot)
+        local newSlot = analyzeBee(slot)
+        if newSlot ~= slot then
+          inv.swapStacks(slot, newSlot)
+        end
         bee = inv.getStackInSlot(slot)
       end
+      local referenceBySpecies = nil
+      if bee.rawName == "item.beedronege" then -- drones
+        referenceBySpecies = referenceDronesBySpecies
+      elseif bee.rawName == "item.beeprincessge" then -- princess
+        referenceBySpecies = referencePrincessesBySpecies
+      end
+      if referenceBySpecies ~= nil then
+        if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
+          local species = bee.beeInfo.active.species
+          if referenceBySpecies[species] == nil or
+              compareBees(bee, referenceBySpecies[species]) then
+            if referenceBySpecies[species] == nil then
+              referenceBeeCount = referenceBeeCount + 1
+              if slot ~= referenceBeeCount then
+                inv.swapStacks(slot, referenceBeeCount)
+              end
+              bee.slot = referenceBeeCount
+            else
+              inv.swapStacks(slot, referenceBySpecies[species].slot)
+              bee.slot = referenceBySpecies[species].slot
+            end
+            referenceBySpecies[species] = bee
+            if bee.qty > 1 then
+              -- drones stack, allowed to use some if more than one
+              table.insert(drones, bee)
+              addBySpecies(dronesBySpecies, bee)
+            end
+          end
+        end
+      end
+    else
+      freeSlot = slot
+      break
+    end
+  end
+  print(string.format("found %d reference bees", referenceBeeCount))
+  for slot = 1 + referenceBeeCount, invSize do
+    local bee = inv.getStackInSlot(slot)
+    if bee ~= nil then
       bee.slot = slot
+      -- check if reference bee
       if bee.rawName == "item.beedronege" then -- drones
         table.insert(drones, bee)
         addBySpecies(dronesBySpecies, bee)
@@ -182,11 +357,17 @@ function analyzeBee(slot)
   write(slot)
   inv.pushItem(analyzerDir, slot, 64, 3)
   while inv.pullItem(analyzerDir, 9, 64, slot) == 0 do
+    if inv.getStackInSlot(slot) ~= nil then
+      slot = slot + 1
+      if slot > invSize then
+        error("chest is full")
+      end
+    end
     sleep(1)
     write(".")
   end
-  print()
   printBee(inv.getStackInSlot(slot))
+  return slot
 end
 
 function waitApiary()
@@ -209,60 +390,6 @@ function breedBees(princess, drone)
   apiary.pullItem(chestDir, princess.slot, 1, 1)
   apiary.pullItem(chestDir, drone.slot, 1, 2)
   waitApiary()
-end
-
--- scoring functions
-
-function canMutateTo(bee, targetSpecies)
-  if bee.beeInfo.active then
-    if (bee.beeInfo.active.species == targetSpecies
-            or mutations[bee.beeInfo.active.species].mutateTo[targetSpecies] ~= nil) then
-      return bee.beeInfo.active.species
-    elseif (bee.beeInfo.inactive.species == targetSpecies
-            or mutations[bee.beeInfo.inactive.species].mutateTo[targetSpecies] ~= nil) then
-      return bee.beeInfo.inactive.species
-    end
-  else
-    if (bee.beeInfo.displayName == targetSpecies
-            or mutations[bee.beeInfo.displayName].mutateTo[targetSpecies] ~= nil) then
-      return bee.beeInfo.displayName
-    end
-  end
-end
-
--- percent chance of 2 species turning into a target species
-function mutationChance(species1, species2, targetSpecies)
-  local chance = {}
-  if species1 == species2 then
-    chance[species1] = 100
-  else
-    chance[species1] = 50
-    chance[species2] = 50
-  end
-  for species, mutates in pairs(mutations[species1].mutateTo) do
-    local mutateChance = mutates[species2]
-    if mutateChance ~= nil then
-      chance[species] = mutateChance
-      chance[species1] = chance[species1] - mutateChance / 2
-      chance[species2] = chance[species2] - mutateChance / 2
-    end
-  end
-  return chance[targetSpecies] or 0.0
-end
-
--- percent chance of 2 bees turning into target species
-function mutateChance(princess, drone, targetSpecies)
-  if princess.beeInfo.active then
-    if drone.beeInfo.active then
-      return (mutationChance(princess.beeInfo.active.species, drone.beeInfo.active.species, targetSpecies) / 4
-             +mutationChance(princess.beeInfo.inactive.species, drone.beeInfo.active.species, targetSpecies) / 4
-             +mutationChance(princess.beeInfo.active.species, drone.beeInfo.inactive.species, targetSpecies) / 4
-             +mutationChance(princess.beeInfo.inactive.species, drone.beeInfo.inactive.species, targetSpecies) / 4)
-    end
-  elseif drone.beeInfo.active then
-  else
-    return mutationChance(princess.beeInfo.displayName, drone.beeInfo.displayName, targetSpecies)
-  end
 end
 
 function beeName(bee)
@@ -290,124 +417,21 @@ function printBee(bee)
     else
       write(" Queen")
     end
-    write((active.nocturnal and " Nocturnal" or " "))
-    write((active.tolerantFlyer and " Flyer" or " "))
-    write((active.caveDwelling and " Cave" or " "))
+    --write((active.nocturnal and " Nocturnal" or " "))
+    --write((active.tolerantFlyer and " Flyer" or " "))
+    --write((active.caveDwelling and " Cave" or " "))
     print()
-    print(string.format("Fert: %d  Speed: %d  Lifespan: %d", active.fertility, active.speed, active.lifespan))
+    --print(string.format("Fert: %d  Speed: %d  Lifespan: %d", active.fertility, active.speed, active.lifespan))
   else
   end
 end
 
-function makeNumberScorer(trait, default)
-  local function scorer(bee1, bee2)
-    local bee1score = default
-    local bee2score = default
-    if bee1.beeInfo.active then
-      bee1score = (bee1.beeInfo.active[trait] + bee1.beeInfo.inactive[trait]) / 2
-    end
-    if bee2.beeInfo.active then
-      bee2score = (bee2.beeInfo.active[trait] + bee2.beeInfo.inactive[trait]) / 2
-    end
-    return (bee1score + bee2score) / 2
-  end
-  return scorer
-end
-
-function makeBooleanScorer(trait)
-  local function scorer(bee1, bee2)
-    local score = 0
-    if bee1.beeInfo.active then
-      score = score + (bee1.beeInfo.active[trait] and 1 or 0) + (bee1.beeInfo.inactive[trait] and 1 or 0)
-    end
-    if bee2.beeInfo.active then
-      score = score + (bee2.beeInfo.active[trait] and 1 or 0) + (bee2.beeInfo.inactive[trait] and 1 or 0)
-    end
-    return score
-  end
-  return scorer
-end
-
-function makeTableScorer(trait, default, lookup)
-  local function scorer(bee1, bee2)
-    local bee1score = default
-    local bee2score = default
-    if bee1.beeInfo.active then
-      bee1score = (lookup[bee1.beeInfo.active[trait]] + lookup[bee1.beeInfo.inactive[trait]]) / 2
-    end
-    if bee2.beeInfo.active then
-      bee2score = (lookup[bee2.beeInfo.active[trait]] + lookup[bee2.beeInfo.inactive[trait]]) / 2
-    end
-    return (bee1score + bee2score) / 2
-  end
-  return scorer
-end
-
-local scoresTolerance = {
-  ["None"]   = 0,
-  ["Up 1"]   = 1,
-  ["Up 2"]   = 2,
-  ["Up 3"]   = 3,
-  ["Up 4"]   = 4,
-  ["Up 5"]   = 5,
-  ["Down 1"] = 1,
-  ["Down 2"] = 2,
-  ["Down 3"] = 3,
-  ["Down 4"] = 4,
-  ["Down 5"] = 5,
-  ["Both 1"] = 2,
-  ["Both 2"] = 4,
-  ["Both 3"] = 6,
-  ["Both 4"] = 8,
-  ["Both 5"] = 10
-}
-
-local scoresFlowerProvider = {
-  ["None"] = 5,
-  ["Rock"] = 4,
-  ["Flowers"] = 3,
-  ["Mushroom"] = 2,
-  ["Cacti"] = 1
-}
-
-local scoreFertility = makeNumberScorer("fertility", 1)
-local scoreFlowering = makeNumberScorer("flowering", 0)
-local scoreSpeed = makeNumberScorer("speed")
-local scoreLifespawn = makeNumberScorer("lifespan", 20)
-local scoreNocturnal = makeBooleanScorer("nocturnal")
-local scoreTolerantFlyer = makeBooleanScorer("tolerantFlyer")
-local scoreCaveDweling = makeBooleanScorer("caveDwelling")
-local scoreEffect = makeBooleanScorer("effect")
-local scoreTemperatureTolerance =  makeTableScorer("temperatureTolerance", 0, scoresTolerance)
-local scoreHumidityTolerance = makeTableScorer("humidityTolerance", 0, scoresTolerance)
-local scoreFlowerProvider = makeTableScorer("flowerProvider", 0, scoresFlowerProvider)
-local scoreTerritory = function(bee1, bee2)
-  local bee1score = 0
-  local bee2score = 0
-  if bee1.beeInfo.active then
-    bee1score = ((bee1.beeInfo.active.territory[1] * bee1.beeInfo.active.territory[2] * bee1.beeInfo.active.territory[3]) +
-                 (bee1.beeInfo.inactive.territory[1] * bee1.beeInfo.inactive.territory[2] * bee1.beeInfo.inactive.territory[3])) / 2
-  end
-  if bee2.beeInfo.active then
-    bee2score = ((bee2.beeInfo.active.territory[1] * bee2.beeInfo.active.territory[2] * bee2.beeInfo.active.territory[3]) +
-                 (bee2.beeInfo.inactive.territory[1] * bee2.beeInfo.inactive.territory[2] * bee2.beeInfo.inactive.territory[3])) / 2
-  end
-  return (bee1score + bee2score) / 2
-end
-
-function compareMates(a, b)
-  for i, trait in ipairs(traitPriority) do
-    if a[trait] ~= b[trait] then
-      return a[trait] > b[trait]
-    end
-  end
-  return true
-end
-
 function getMate(beeSpecies, targetSpecies)
-  for i, parents in ipairs(mutations[targetSpecies].mutateFrom) do
-    if beeSpecies == parents[1] then
-      return parents[2]
+  for i, parents in ipairs(apiary.getBeeParents(targetSpecies)) do
+    if beeSpecies == parents.allele1 then
+      return parents.allele2
+    elseif beeSpecies == parents.allele2 then
+      return parents.allele1
     end
   end
 end
@@ -416,31 +440,25 @@ end
 --   or initiates breeding of lower species
 function selectPair(targetSpecies)
   print("targetting "..targetSpecies)
-  for _, s in ipairs(mutations[targetSpecies].specialConditions) do
-    print("    ", s)
+  if #apiary.getBeeParents(targetSpecies) > 0 then
+    for _, s in ipairs(apiary.getBeeParents(targetSpecies)[1].specialConditions) do
+      print("    ", s)
+    end
   end
   local mateCombos = choose(princesses, drones)
   local mates = {}
   for i, v in ipairs(mateCombos) do
-    local chance = mutateChance(v[1], v[2], targetSpecies)
+    local chance = mutateBeeChance(v[1], v[2], targetSpecies)
     if chance > 0 then
-      table.insert(mates, {
+      local newMates = {
         ["princess"] = v[1],
         ["drone"] = v[2],
-        ["speciesChance"] = mutateChance(v[1], v[2], targetSpecies),
-        ["fertility"] = scoreFertility(v[1], v[2]),
-        ["flowering"] = scoreFlowering(v[1], v[2]),
-        ["speed"] = scoreSpeed(v[1], v[2]),
-        ["lifespan"] = scoreLifespawn(v[1], v[2]),
-        ["nocturnal"] = scoreNocturnal(v[1], v[2]),
-        ["tolerantFlyer"] = scoreTolerantFlyer(v[1], v[2]),
-        ["caveDwelling"] = scoreCaveDweling(v[1], v[2]),
-        ["effect"] = scoreEffect(v[1], v[2]),
-        ["temperatureTolerance"] = scoreTemperatureTolerance(v[1], v[2]),
-        ["humidityTolerance"] = scoreHumidityTolerance(v[1], v[2]),
-        ["flowerProvider"] = scoreFlowerProvider(v[1], v[2]),
-        ["territory"] = scoreTerritory(v[1], v[2]),
-      })
+        ["speciesChance"] = chance
+      }
+      for trait, scorer in pairs(scoring) do
+        newMates[trait] = (scorer(v[1]) + scorer(v[2])) / 2
+      end
+      table.insert(mates, newMates)
     end
   end
   if #mates > 0 then
@@ -453,6 +471,14 @@ function selectPair(targetSpecies)
     end
     return mates[1]
   else
+    -- check for reference bees and breed if drone count is 1
+    if referencePrincessesBySpecies[targetSpecies] ~= nil and
+        referenceDronesBySpecies[targetSpecies] ~= nil then
+      return {
+        ["princess"] = referencePrincessesBySpecies[targetSpecies],
+        ["drone"] = referenceDronesBySpecies[targetSpecies]
+      }
+    end
     -- attempt lower tier bee
     print("try lower tier of "..targetSpecies)
     local parentss = apiary.getBeeParents(targetSpecies)
@@ -502,18 +528,28 @@ clearApiary()
 clearAnalyzer()
 catalogBees()
 while true do
-  local mates = selectPair(tArgs[1])
-  if mates ~= nil then
-    if isPureBred(mates.princess, mates.drone, tArgs[1]) then
-      break
-    else
-      breedBees(mates.princess, mates.drone)
-      catalogBees()
-    end
-  else
-    write("Please add more bees and press [Enter]")
+  if #princesses == 0 then
+    write("Please add more princesses and press [Enter]")
     io.read("*l")
     catalogBees()
+  elseif #drones == 0 and next(referenceDronesBySpecies) == nil then
+    write("Please add more drones and press [Enter]")
+    io.read("*l")
+    catalogBees()
+  else
+    local mates = selectPair(tArgs[1])
+    if mates ~= nil then
+      if isPureBred(mates.princess, mates.drone, tArgs[1]) then
+        break
+      else
+        breedBees(mates.princess, mates.drone)
+        catalogBees()
+      end
+    else
+      write("Please add more bee species and press [Enter]")
+      io.read("*l")
+      catalogBees()
+    end
   end
 end
 print("Bees are purebred")
