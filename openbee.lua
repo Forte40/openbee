@@ -209,16 +209,24 @@ end
 -- inventory functions
 
 function addBySpecies(beesBySpecies, bee)
-  if beesBySpecies[bee.beeInfo.active.species] == nil then
-    beesBySpecies[bee.beeInfo.active.species] = {bee}
-  else
-    table.insert(beesBySpecies[bee.beeInfo.active.species], bee)
-  end
-  if bee.beeInfo.inactive.species ~= bee.beeInfo.active.species then
-    if beesBySpecies[bee.beeInfo.inactive.species] == nil then
-      beesBySpecies[bee.beeInfo.inactive.species] = {bee}
+  if bee.beeInfo.isAnalyzed then
+    if beesBySpecies[bee.beeInfo.active.species] == nil then
+      beesBySpecies[bee.beeInfo.active.species] = {bee}
     else
-      table.insert(beesBySpecies[bee.beeInfo.inactive.species], bee)
+      table.insert(beesBySpecies[bee.beeInfo.active.species], bee)
+    end
+    if bee.beeInfo.inactive.species ~= bee.beeInfo.active.species then
+      if beesBySpecies[bee.beeInfo.inactive.species] == nil then
+        beesBySpecies[bee.beeInfo.inactive.species] = {bee}
+      else
+        table.insert(beesBySpecies[bee.beeInfo.inactive.species], bee)
+      end
+    end
+  else
+    if beesBySpecies[bee.beeInfo.displayName] == nil then
+      beesBySpecies[bee.beeInfo.displayName] = {bee}
+    else
+      table.insert(beesBySpecies[bee.beeInfo.displayName], bee)
     end
   end
 end
@@ -241,7 +249,7 @@ function catalogBees()
     if bee ~= nil then
       if bee.beeInfo ~= nil and bee.beeInfo.isAnalyzed == false then
         local newSlot = analyzeBee(slot)
-        if newSlot ~= slot then
+        if newSlot ~= nil and newSlot ~= slot then
           inv.swapStacks(slot, newSlot)
         end
         bee = inv.getStackInSlot(slot)
@@ -252,7 +260,7 @@ function catalogBees()
       elseif bee.rawName == "item.beeprincessge" then -- princess
         referenceBySpecies = referencePrincessesBySpecies
       end
-      if referenceBySpecies ~= nil then
+      if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed == true then
         if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
           local species = bee.beeInfo.active.species
           if referenceBySpecies[species] == nil or
@@ -355,16 +363,21 @@ function analyzeBee(slot)
   clearAnalyzer()
   write("analyzing bee ")
   write(slot)
-  inv.pushItem(analyzerDir, slot, 64, 3)
-  while inv.pullItem(analyzerDir, 9, 64, slot) == 0 do
-    if inv.getStackInSlot(slot) ~= nil then
-      slot = slot + 1
-      if slot > invSize then
-        error("chest is full")
+  write(".")
+  if inv.pushItem(analyzerDir, slot, 64, 3) > 0 then
+    while inv.pullItem(analyzerDir, 9, 64, slot) == 0 do
+      if inv.getStackInSlot(slot) ~= nil then
+        slot = slot + 1
+        if slot > invSize then
+          error("chest is full")
+        end
       end
+      write(".")
+      sleep(5)
     end
-    sleep(1)
-    write(".")
+  else
+    print("Missing Analyzer")
+    return nil
   end
   printBee(inv.getStackInSlot(slot))
   return slot
