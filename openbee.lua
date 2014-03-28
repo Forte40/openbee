@@ -49,6 +49,16 @@ function fixName(name)
   return name:gsub("bees%.species%.",""):gsub("^.", string.upper)
 end
 
+function fixBee(bee)
+  if bee.beeInfo ~= nil then
+    bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
+    if bee.beeInfo.isAnalyzed then
+      bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
+      bee.beeInfo.inactive.species = fixName(bee.beeInfo.inactive.species)
+    end
+  end
+end
+
 -- mutation graph
 
 local mutations = {}
@@ -195,11 +205,14 @@ local scoring = {
 }
 
 function compareBees(a, b)
-  for trait, scorer in pairs(scoring) do
-    local aScore = scorer(a)
-    local bScore = scorer(b)
-    if aScore ~= bScore then
-      return aScore > bScore
+  for _, trait in ipairs(traitPriority) do
+    local scorer = scoring[trait]
+    if scorer ~= nil then
+      local aScore = scorer(a)
+      local bScore = scorer(b)
+      if aScore ~= bScore then
+        return aScore > bScore
+      end
     end
   end
   return true
@@ -266,10 +279,7 @@ function catalogBees()
           bees[slot] = inv.getStackInSlot(slot)
           bee = bees[slot]
         end
-        -- fix for some versions returning mangled name
-        bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
-        bee.beeInfo.inactive.species = fixName(bee.beeInfo.active.species)
-        bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
+        fixBee(bee)
         if useReferenceBees then
           local referenceBySpecies = nil
           if bee.rawName == "item.beedronege" then -- drones
@@ -309,17 +319,38 @@ function catalogBees()
     end
   end
   print(string.format("found %d reference bees", referenceBeeCount))
+  -- phase 2 -- ditch product and obsolete drones
+  bees = inv.getAllStacks()
+  local ditchSlot = 1
   for slot = 1 + referenceBeeCount, invSize do
     local bee = bees[slot]
     if bee ~= nil then
-      bee.slot = slot
-      if bee.beeInfo ~= nil then
-        -- fix for some versions returning mangled name
-        bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
-        bee.beeInfo.inactive.species = fixName(bee.beeInfo.active.species)
-        bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
+      fixBee(bee)
+      -- remove analyzed drones where both the active and inactive species have
+      --   a both reference princess and drone
+      if bee.beeInfo == nil or (
+          bee.rawName == "item.beedronege" and
+          bee.beeInfo.active ~= nil and (
+            referencePrincessesBySpecies[bee.beeInfo.active.species] ~= nil and
+            referenceDronesBySpecies[bee.beeInfo.active.species] ~= nil and
+            referencePrincessesBySpecies[bee.beeInfo.inactive.species] ~= nil and
+            referenceDronesBySpecies[bee.beeInfo.inactive.species] ~= nil)) then
+        while inv.pushItem(productDir, slot, 64, ditchSlot) == 0 do
+          ditchSlot = ditchSlot + 1
+          if ditchSlot > 108 then
+            break
+          end
+        end
       end
-      -- check if reference bee
+    else
+    end
+  end
+  -- phase 3 -- catalog bees
+  bees = inv.getAllStacks()
+  for slot, bee in pairs(bees) do
+    fixBee(bee)
+    bee.slot = slot
+    if slot > referenceBeeCount then
       if bee.rawName == "item.beedronege" then -- drones
         table.insert(drones, bee)
         addBySpecies(dronesBySpecies, bee)
@@ -346,12 +377,16 @@ function clearApiary()
   for slot = 3, 9 do
     local output = outputs[slot]
     if output ~= nil then
-      while bees[invSize] ~= nil do
+      while bees[freeSlot] ~= nil do
         freeSlot = freeSlot + 1
       end
       if output.rawName == "item.beedronege" or output.rawName == "item.beeprincessge" then
+        if freeSlot > invSize then
+          error("Chest is full")
+        end
         beeCount = beeCount + 1
         apiary.pushItem(chestDir, slot, 64, freeSlot)
+        bees[freeSlot] = inv.getStackInSlot(freeSlot)
       else
         local found = false
         for productSlot, item in ipairs(bees) do
@@ -363,7 +398,11 @@ function clearApiary()
           end
         end
         if not found then
+          if freeSlot > invSize then
+            error("Chest is full")
+          end
           apiary.pushItem(chestDir, slot, 64, freeSlot)
+          bees[freeSlot] = inv.getStackInSlot(freeSlot)
         end
       end
     end
@@ -513,6 +552,7 @@ function selectPair(targetSpecies)
     -- check for reference bees and breed if drone count is 1
     if referencePrincessesBySpecies[targetSpecies] ~= nil and
         referenceDronesBySpecies[targetSpecies] ~= nil then
+      print("Breeding extra drone from reference bees")
       return {
         ["princess"] = referencePrincessesBySpecies[targetSpecies],
         ["drone"] = referenceDronesBySpecies[targetSpecies]
