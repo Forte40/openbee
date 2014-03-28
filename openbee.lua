@@ -43,6 +43,11 @@ function choose(list1, list2)
   return newList
 end
 
+-- fix for some versions returning bees.species.*
+function fixName(name)
+  return name:gsub("bees%.species%.",""):gsub("^.", string.upper)
+end
+
 -- mutation graph
 
 local mutations = {}
@@ -256,6 +261,10 @@ function catalogBees()
         end
         bee = inv.getStackInSlot(slot)
       end
+      -- fix for some versions returning mangled name
+      bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
+      bee.beeInfo.inactive.species = fixName(bee.beeInfo.active.species)
+      bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
       if useReferenceBees then
         local referenceBySpecies = nil
         if bee.rawName == "item.beedronege" then -- drones
@@ -298,6 +307,10 @@ function catalogBees()
     local bee = inv.getStackInSlot(slot)
     if bee ~= nil then
       bee.slot = slot
+      -- fix for some versions returning mangled name
+      bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
+      bee.beeInfo.inactive.species = fixName(bee.beeInfo.active.species)
+      bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
       -- check if reference bee
       if bee.rawName == "item.beedronege" then -- drones
         table.insert(drones, bee)
