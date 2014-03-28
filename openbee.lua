@@ -1,7 +1,8 @@
 local apiarySide = "left"
-local chestSide = "top"
+local chestSide = "diamond_3"
 local chestDir = "up"
 local analyzerDir = "east"
+local useReferenceBees = true
 
 local traitPriority = {"speciesChance", "fertility", "speed", "nocturnal", "tolerantFlyer", "caveDwelling", "lifespan", "temperatureTolerance", "humidityTolerance", "effect", "flowering", "flowerProvider", "territory"}
 
@@ -128,7 +129,7 @@ end
 function makeTableScorer(trait, default, lookup)
   local function scorer(bee)
     if bee.beeInfo.active then
-      return (lookup[bee.beeInfo.active[trait]] + lookup[bee.beeInfo.inactive[trait]]) / 2
+      return ((lookup[bee.beeInfo.active[trait]] or default) + (lookup[bee.beeInfo.inactive[trait]] or default)) / 2
     else
       return default
     end
@@ -161,6 +162,7 @@ local scoresFlowerProvider = {
   ["Flowers"] = 3,
   ["Mushroom"] = 2,
   ["Cacti"] = 1,
+  ["Exotic Flowers"] = 0,
   ["Jungle"] = 0
 }
 
@@ -254,32 +256,34 @@ function catalogBees()
         end
         bee = inv.getStackInSlot(slot)
       end
-      local referenceBySpecies = nil
-      if bee.rawName == "item.beedronege" then -- drones
-        referenceBySpecies = referenceDronesBySpecies
-      elseif bee.rawName == "item.beeprincessge" then -- princess
-        referenceBySpecies = referencePrincessesBySpecies
-      end
-      if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed == true then
-        if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
-          local species = bee.beeInfo.active.species
-          if referenceBySpecies[species] == nil or
-              compareBees(bee, referenceBySpecies[species]) then
-            if referenceBySpecies[species] == nil then
-              referenceBeeCount = referenceBeeCount + 1
-              if slot ~= referenceBeeCount then
-                inv.swapStacks(slot, referenceBeeCount)
+      if useReferenceBees then
+        local referenceBySpecies = nil
+        if bee.rawName == "item.beedronege" then -- drones
+          referenceBySpecies = referenceDronesBySpecies
+        elseif bee.rawName == "item.beeprincessge" then -- princess
+          referenceBySpecies = referencePrincessesBySpecies
+        end
+        if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed == true then
+          if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
+            local species = bee.beeInfo.active.species
+            if referenceBySpecies[species] == nil or
+                compareBees(bee, referenceBySpecies[species]) then
+              if referenceBySpecies[species] == nil then
+                referenceBeeCount = referenceBeeCount + 1
+                if slot ~= referenceBeeCount then
+                  inv.swapStacks(slot, referenceBeeCount)
+                end
+                bee.slot = referenceBeeCount
+              else
+                inv.swapStacks(slot, referenceBySpecies[species].slot)
+                bee.slot = referenceBySpecies[species].slot
               end
-              bee.slot = referenceBeeCount
-            else
-              inv.swapStacks(slot, referenceBySpecies[species].slot)
-              bee.slot = referenceBySpecies[species].slot
-            end
-            referenceBySpecies[species] = bee
-            if bee.qty > 1 then
-              -- drones stack, allowed to use some if more than one
-              table.insert(drones, bee)
-              addBySpecies(dronesBySpecies, bee)
+              referenceBySpecies[species] = bee
+              if bee.qty > 1 then
+                -- drones stack, allowed to use some if more than one
+                table.insert(drones, bee)
+                addBySpecies(dronesBySpecies, bee)
+              end
             end
           end
         end
