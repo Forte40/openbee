@@ -254,44 +254,46 @@ function catalogBees()
   for slot = 1, invSize do
     local bee = inv.getStackInSlot(slot)
     if bee ~= nil then
-      if bee.beeInfo ~= nil and bee.beeInfo.isAnalyzed == false then
-        local newSlot = analyzeBee(slot)
-        if newSlot ~= nil and newSlot ~= slot then
-          inv.swapStacks(slot, newSlot)
+      if bee.beeInfo ~= nil then
+        if bee.beeInfo.isAnalyzed == false then
+          local newSlot = analyzeBee(slot)
+          if newSlot ~= nil and newSlot ~= slot then
+            inv.swapStacks(slot, newSlot)
+          end
+          bee = inv.getStackInSlot(slot)
         end
-        bee = inv.getStackInSlot(slot)
-      end
-      -- fix for some versions returning mangled name
-      bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
-      bee.beeInfo.inactive.species = fixName(bee.beeInfo.active.species)
-      bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
-      if useReferenceBees then
-        local referenceBySpecies = nil
-        if bee.rawName == "item.beedronege" then -- drones
-          referenceBySpecies = referenceDronesBySpecies
-        elseif bee.rawName == "item.beeprincessge" then -- princess
-          referenceBySpecies = referencePrincessesBySpecies
-        end
-        if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed == true then
-          if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
-            local species = bee.beeInfo.active.species
-            if referenceBySpecies[species] == nil or
-                compareBees(bee, referenceBySpecies[species]) then
-              if referenceBySpecies[species] == nil then
-                referenceBeeCount = referenceBeeCount + 1
-                if slot ~= referenceBeeCount then
-                  inv.swapStacks(slot, referenceBeeCount)
+        -- fix for some versions returning mangled name
+        bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
+        bee.beeInfo.inactive.species = fixName(bee.beeInfo.active.species)
+        bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
+        if useReferenceBees then
+          local referenceBySpecies = nil
+          if bee.rawName == "item.beedronege" then -- drones
+            referenceBySpecies = referenceDronesBySpecies
+          elseif bee.rawName == "item.beeprincessge" then -- princess
+            referenceBySpecies = referencePrincessesBySpecies
+          end
+          if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed == true then
+            if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
+              local species = bee.beeInfo.active.species
+              if referenceBySpecies[species] == nil or
+                  compareBees(bee, referenceBySpecies[species]) then
+                if referenceBySpecies[species] == nil then
+                  referenceBeeCount = referenceBeeCount + 1
+                  if slot ~= referenceBeeCount then
+                    inv.swapStacks(slot, referenceBeeCount)
+                  end
+                  bee.slot = referenceBeeCount
+                else
+                  inv.swapStacks(slot, referenceBySpecies[species].slot)
+                  bee.slot = referenceBySpecies[species].slot
                 end
-                bee.slot = referenceBeeCount
-              else
-                inv.swapStacks(slot, referenceBySpecies[species].slot)
-                bee.slot = referenceBySpecies[species].slot
-              end
-              referenceBySpecies[species] = bee
-              if bee.qty > 1 then
-                -- drones stack, allowed to use some if more than one
-                table.insert(drones, bee)
-                addBySpecies(dronesBySpecies, bee)
+                referenceBySpecies[species] = bee
+                if bee.qty > 1 then
+                  -- drones stack, allowed to use some if more than one
+                  table.insert(drones, bee)
+                  addBySpecies(dronesBySpecies, bee)
+                end
               end
             end
           end
