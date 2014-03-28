@@ -309,10 +309,12 @@ function catalogBees()
     local bee = inv.getStackInSlot(slot)
     if bee ~= nil then
       bee.slot = slot
-      -- fix for some versions returning mangled name
-      bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
-      bee.beeInfo.inactive.species = fixName(bee.beeInfo.active.species)
-      bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
+      if bee.beeInfo ~= nil then
+        -- fix for some versions returning mangled name
+        bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
+        bee.beeInfo.inactive.species = fixName(bee.beeInfo.active.species)
+        bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
+      end
       -- check if reference bee
       if bee.rawName == "item.beedronege" then -- drones
         table.insert(drones, bee)
