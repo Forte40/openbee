@@ -1,6 +1,7 @@
 local apiarySide = "left"
 local chestSide = "diamond_3"
 local chestDir = "up"
+local productDir = "up"
 local analyzerDir = "east"
 local useReferenceBees = true
 
@@ -247,12 +248,14 @@ function catalogBees()
   referenceDronesBySpecies = {}
   referencePrincessesBySpecies = {}
 
+  -- phase 1 -- analyze bees and mark reference bees
   inv.condenseItems()
   print(string.format("scanning %d slots", invSize))
   local referenceBeeCount = 0
   local freeSlot = 0
+  local bees = inv.getAllStacks()
   for slot = 1, invSize do
-    local bee = inv.getStackInSlot(slot)
+    local bee = bees[slot]
     if bee ~= nil then
       if bee.beeInfo ~= nil then
         if bee.beeInfo.isAnalyzed == false then
@@ -260,7 +263,8 @@ function catalogBees()
           if newSlot ~= nil and newSlot ~= slot then
             inv.swapStacks(slot, newSlot)
           end
-          bee = inv.getStackInSlot(slot)
+          bees[slot] = inv.getStackInSlot(slot)
+          bee = bees[slot]
         end
         -- fix for some versions returning mangled name
         bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
@@ -306,7 +310,7 @@ function catalogBees()
   end
   print(string.format("found %d reference bees", referenceBeeCount))
   for slot = 1 + referenceBeeCount, invSize do
-    local bee = inv.getStackInSlot(slot)
+    local bee = bees[slot]
     if bee ~= nil then
       bee.slot = slot
       if bee.beeInfo ~= nil then
@@ -335,24 +339,24 @@ end
 
 function clearApiary()
   local beeCount = 0
-  local invSlot = 1
+  local freeSlot = 1
+  local productSlot = 0
+  local bees = inv.getAllStacks()
+  local outputs = apiary.getAllStacks()
   for slot = 3, 9 do
-    local stuff = apiary.getStackInSlot(slot)
-    if stuff ~= nil then
-      while inv.getStackInSlot(invSlot) ~= nil do
-        invSlot = invSlot + 1
+    local output = outputs[slot]
+    if output ~= nil then
+      while bees[invSize] ~= nil do
+        freeSlot = freeSlot + 1
       end
-      if stuff.rawName == "item.beedronege" or stuff.rawName == "item.beeprincessge" then
+      if output.rawName == "item.beedronege" or output.rawName == "item.beeprincessge" then
         beeCount = beeCount + 1
-        apiary.pushItem(chestDir, slot, 64, invSlot)
+        apiary.pushItem(chestDir, slot, 64, freeSlot)
       else
         local found = false
-        local freeSlot = 0
-        for productSlot = 1, invSize do
-          local item = inv.getStackInSlot(productSlot)
-          if item == nil then
-            freeSlot = productSlot
-          elseif stuff.name == item.name and (item.maxSize - item.qty) >= stuff.qty then
+        for productSlot, item in ipairs(bees) do
+          if output.name == item.name and
+              (item.maxSize - item.qty) >= output.qty then
             apiary.pushItem(chestDir, slot, 64, productSlot)
             found = true
             break
@@ -369,8 +373,9 @@ end
 
 function clearAnalyzer()
   local invSlot = 1
+  local bees = inv.getAllStacks()
   for analyzerSlot = 9, 12 do
-    while inv.getStackInSlot(invSlot) ~= nil do
+    while bees[invSlot] ~= nil do
       invSlot = invSlot + 1
       if invSlot > invSize then
         error("chest is full")
