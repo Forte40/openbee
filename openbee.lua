@@ -1,11 +1,13 @@
 local apiarySide = "left"
-local chestSide = "diamond_3"
+local chestSide = "gold_0"
 local chestDir = "up"
 local productDir = "up"
 local analyzerDir = "east"
+
+local useAnalyzer = true
 local useReferenceBees = true
 
-local traitPriority = {"speciesChance", "fertility", "speed", "nocturnal", "tolerantFlyer", "caveDwelling", "lifespan", "temperatureTolerance", "humidityTolerance", "effect", "flowering", "flowerProvider", "territory"}
+local traitPriority = {"speciesChance", "fertility", "speed", "nocturnal", "tolerantFlyer", "caveDwelling", "temperatureTolerance", "humidityTolerance", "effect", "flowering", "flowerProvider", "territory"}
 
 local inv = peripheral.wrap(chestSide)
 local invSize = inv.getInventorySize()
@@ -51,7 +53,7 @@ end
 
 function fixBee(bee)
   if bee.beeInfo ~= nil then
-    bee.beeInfo.displayName = fixName(bee.beeInfo.active.species)
+    bee.beeInfo.displayName = fixName(bee.beeInfo.displayName)
     if bee.beeInfo.isAnalyzed then
       bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
       bee.beeInfo.inactive.species = fixName(bee.beeInfo.inactive.species)
@@ -105,14 +107,14 @@ end
 
 -- percent chance of 2 bees turning into target species
 function mutateBeeChance(princess, drone, targetSpecies)
-  if princess.beeInfo.active then
-    if drone.beeInfo.active then
+  if princess.beeInfo.isAnalyzed then
+    if drone.beeInfo.isAnalyzed then
       return (mutateSpeciesChance(princess.beeInfo.active.species, drone.beeInfo.active.species, targetSpecies) / 4
              +mutateSpeciesChance(princess.beeInfo.inactive.species, drone.beeInfo.active.species, targetSpecies) / 4
              +mutateSpeciesChance(princess.beeInfo.active.species, drone.beeInfo.inactive.species, targetSpecies) / 4
              +mutateSpeciesChance(princess.beeInfo.inactive.species, drone.beeInfo.inactive.species, targetSpecies) / 4)
     end
-  elseif drone.beeInfo.active then
+  elseif drone.beeInfo.isAnalyzed then
   else
     return mutateSpeciesChance(princess.beeInfo.displayName, drone.beeInfo.displayName, targetSpecies)
   end
@@ -122,7 +124,7 @@ end
 
 function makeNumberScorer(trait, default)
   local function scorer(bee)
-    if bee.beeInfo.active then
+    if bee.beeInfo.isAnalyzed then
       return (bee.beeInfo.active[trait] + bee.beeInfo.inactive[trait]) / 2
     else
       return default
@@ -133,7 +135,7 @@ end
 
 function makeBooleanScorer(trait)
   local function scorer(bee)
-    if bee.beeInfo.active then
+    if bee.beeInfo.isAnalyzed then
       return ((bee.beeInfo.active[trait] and 1 or 0) + (bee.beeInfo.inactive[trait] and 1 or 0)) / 2
     else
       return 0
@@ -144,7 +146,7 @@ end
 
 function makeTableScorer(trait, default, lookup)
   local function scorer(bee)
-    if bee.beeInfo.active then
+    if bee.beeInfo.isAnalyzed then
       return ((lookup[bee.beeInfo.active[trait]] or default) + (lookup[bee.beeInfo.inactive[trait]] or default)) / 2
     else
       return default
@@ -195,7 +197,7 @@ local scoring = {
   ["humidityTolerance"] = makeTableScorer("humidityTolerance", 0, scoresTolerance),
   ["flowerProvider"] = makeTableScorer("flowerProvider", 0, scoresFlowerProvider),
   ["territory"] = function(bee)
-    if bee.beeInfo.active then
+    if bee.beeInfo.isAnalyzed then
       return ((bee.beeInfo.active.territory[1] * bee.beeInfo.active.territory[2] * bee.beeInfo.active.territory[3]) +
                    (bee.beeInfo.inactive.territory[1] * bee.beeInfo.inactive.territory[2] * bee.beeInfo.inactive.territory[3])) / 2
     else
@@ -225,6 +227,21 @@ function compareMates(a, b)
     end
   end
   return true
+end
+
+function betterTraits(a, b)
+  local traits = {}
+  for _, trait in ipairs(traitPriority) do
+    local scorer = scoring[trait]
+    if scorer ~= nil then
+      local aScore = scorer(a)
+      local bScore = scorer(b)
+      if bScore > aScore then
+        table.insert(traits, trait)
+      end
+    end
+  end
+  return traits
 end
 
 -- inventory functions
@@ -271,7 +288,7 @@ function catalogBees()
     local bee = bees[slot]
     if bee ~= nil then
       if bee.beeInfo ~= nil then
-        if bee.beeInfo.isAnalyzed == false then
+        if bee.beeInfo.isAnalyzed == false and useAnalyzer == true then
           local newSlot = analyzeBee(slot)
           if newSlot ~= nil and newSlot ~= slot then
             inv.swapStacks(slot, newSlot)
@@ -287,7 +304,7 @@ function catalogBees()
           elseif bee.rawName == "item.beeprincessge" then -- princess
             referenceBySpecies = referencePrincessesBySpecies
           end
-          if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed == true then
+          if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed then
             if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
               local species = bee.beeInfo.active.species
               if referenceBySpecies[species] == nil or
@@ -303,11 +320,6 @@ function catalogBees()
                   bee.slot = referenceBySpecies[species].slot
                 end
                 referenceBySpecies[species] = bee
-                if bee.qty > 1 then
-                  -- drones stack, allowed to use some if more than one
-                  table.insert(drones, bee)
-                  addBySpecies(dronesBySpecies, bee)
-                end
               end
             end
           end
@@ -328,17 +340,43 @@ function catalogBees()
       fixBee(bee)
       -- remove analyzed drones where both the active and inactive species have
       --   a both reference princess and drone
-      if bee.beeInfo == nil or (
-          bee.rawName == "item.beedronege" and
-          bee.beeInfo.active ~= nil and (
-            referencePrincessesBySpecies[bee.beeInfo.active.species] ~= nil and
-            referenceDronesBySpecies[bee.beeInfo.active.species] ~= nil and
-            referencePrincessesBySpecies[bee.beeInfo.inactive.species] ~= nil and
-            referenceDronesBySpecies[bee.beeInfo.inactive.species] ~= nil)) then
+      if bee.beeInfo == nil then
         while inv.pushItem(productDir, slot, 64, ditchSlot) == 0 do
           ditchSlot = ditchSlot + 1
           if ditchSlot > 108 then
             break
+          end
+        end
+      elseif (
+        bee.rawName == "item.beedronege" and
+        bee.beeInfo.isAnalyzed and (
+          referencePrincessesBySpecies[bee.beeInfo.active.species] ~= nil and
+          referenceDronesBySpecies[bee.beeInfo.active.species] ~= nil and
+          referencePrincessesBySpecies[bee.beeInfo.inactive.species] ~= nil and
+          referenceDronesBySpecies[bee.beeInfo.inactive.species] ~= nil
+        )
+      ) then
+        local activeDroneTraits = betterTraits(referenceDronesBySpecies[bee.beeInfo.active.species], bee)
+        local inactiveDroneTraits = betterTraits(referenceDronesBySpecies[bee.beeInfo.inactive.species], bee)
+        if #activeDroneTraits > 0 or #inactiveDroneTraits > 0 then
+          -- manipulate reference bee to have better yet less important attribute
+          -- this ditches more bees while keeping at least one with the attribute
+          -- the cataloging step will fix the manipulation
+          for i, trait in ipairs(activeDroneTraits) do
+            referenceDronesBySpecies[bee.beeInfo.active.species].beeInfo.active[trait] = bee.beeInfo.active[trait]
+            referenceDronesBySpecies[bee.beeInfo.active.species].beeInfo.inactive[trait] = bee.beeInfo.inactive[trait]
+          end
+          for i, trait in ipairs(inactiveDroneTraits) do
+            referenceDronesBySpecies[bee.beeInfo.inactive.species].beeInfo.active[trait] = bee.beeInfo.active[trait]
+            referenceDronesBySpecies[bee.beeInfo.inactive.species].beeInfo.inactive[trait] = bee.beeInfo.inactive[trait]
+          end
+        else
+          -- ditch drone
+          while inv.pushItem(productDir, slot, 64, ditchSlot) == 0 do
+            ditchSlot = ditchSlot + 1
+            if ditchSlot > 108 then
+              break
+            end
           end
         end
       end
@@ -359,6 +397,11 @@ function catalogBees()
         addBySpecies(princessesBySpecies, bee)
       elseif bee.id == 13339 then -- queens
         table.insert(queens, bee)
+      end
+    else
+      if bee.rawName == "item.beedronege" and bee.qty > 1 then
+        table.insert(drones, bee)
+        addBySpecies(dronesBySpecies, bee)
       end
     end
   end
@@ -428,7 +471,7 @@ function analyzeBee(slot)
   clearAnalyzer()
   write("analyzing bee ")
   write(slot)
-  write(".")
+  write("...")
   if inv.pushItem(analyzerDir, slot, 64, 3) > 0 then
     while inv.pullItem(analyzerDir, 9, 64, slot) == 0 do
       if inv.getStackInSlot(slot) ~= nil then
@@ -437,11 +480,11 @@ function analyzeBee(slot)
           error("chest is full")
         end
       end
-      write(".")
-      sleep(5)
+      sleep(1)
     end
   else
     print("Missing Analyzer")
+    useAnalyzer = false
     return nil
   end
   printBee(inv.getStackInSlot(slot))
@@ -480,7 +523,7 @@ function beeName(bee)
 end
 
 function printBee(bee)
-  if bee.beeInfo.active then
+  if bee.beeInfo.isAnalyzed then
     local active = bee.beeInfo.active
     local inactive = bee.beeInfo.inactive
     if active.species ~= inactive.species then
@@ -518,16 +561,22 @@ end
 --   or initiates breeding of lower species
 function selectPair(targetSpecies)
   print("targetting "..targetSpecies)
+  local baseChance
   if #apiary.getBeeParents(targetSpecies) > 0 then
-    for _, s in ipairs(apiary.getBeeParents(targetSpecies)[1].specialConditions) do
+    local parents = apiary.getBeeParents(targetSpecies)[1]
+    baseChance = parents.chance
+    for _, s in ipairs(parents.specialConditions) do
       print("    ", s)
     end
   end
   local mateCombos = choose(princesses, drones)
   local mates = {}
+  local haveReference = (referencePrincessesBySpecies[targetSpecies] ~= nil and
+      referenceDronesBySpecies[targetSpecies] ~= nil)
   for i, v in ipairs(mateCombos) do
     local chance = mutateBeeChance(v[1], v[2], targetSpecies)
-    if chance > 0 then
+    if (not haveReference and chance > baseChance / 2) or
+        (haveReference and chance > 25) then
       local newMates = {
         ["princess"] = v[1],
         ["drone"] = v[2],
@@ -559,7 +608,6 @@ function selectPair(targetSpecies)
       }
     end
     -- attempt lower tier bee
-    print("try lower tier of "..targetSpecies)
     local parentss = apiary.getBeeParents(targetSpecies)
     if #parentss > 0 then
       table.sort(parentss, function(a, b) return a.chance > b.chance end)
@@ -586,11 +634,15 @@ function selectPair(targetSpecies)
 end
 
 function isPureBred(bee1, bee2, targetSpecies)
-  if bee1.beeInfo.active and bee2.beeInfo.active then
+  if bee1.beeInfo.isAnalyzed and bee2.beeInfo.isAnalyzed then
     if bee1.beeInfo.active.species == bee1.beeInfo.inactive.species and
         bee2.beeInfo.active.species == bee2.beeInfo.inactive.species and
         bee1.beeInfo.active.species == bee2.beeInfo.active.species and
         (targetSpecies == nil or bee1.beeInfo.active.species == targetSpecies) then
+      return true
+    end
+  elseif bee1.beeInfo.isAnalyzed == false and bee2.beeInfo.isAnalyzed == false then
+    if bee1.beeInfo.displayName == bee2.beeInfo.displayName then
       return true
     end
   end
