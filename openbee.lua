@@ -7,7 +7,7 @@ local analyzerDir = "east"
 local useAnalyzer = true
 local useReferenceBees = true
 
-local traitPriority = {"speciesChance", "fertility", "speed", "nocturnal", "tolerantFlyer", "caveDwelling", "temperatureTolerance", "humidityTolerance", "effect", "flowering", "flowerProvider", "territory"}
+local traitPriority = {"speciesChance", "speed", "fertility", "nocturnal", "tolerantFlyer", "caveDwelling", "temperatureTolerance", "humidityTolerance", "effect", "flowering", "flowerProvider", "territory"}
 
 local inv = peripheral.wrap(chestSide)
 local invSize = inv.getInventorySize()
@@ -94,6 +94,22 @@ for _, parents in pairs(apiary.getBeeBreedingData()) do
   fixParents(parents)
   addMutateTo(parents.allele1, parents.allele2, parents.result, parents.chance)
   addMutateTo(parents.allele2, parents.allele1, parents.result, parents.chance)
+end
+
+function buildTargetSpeciesList()
+  local targetSpeciesList = {}
+  local parentss = apiary.getBeeBreedingData()
+  for _, parents in pairs(parentss) do
+    if princessesBySpecies[parents.allele1] ~= nil and
+        princessesBySpecies[parents.allele2] ~= nil and
+        (
+          referencePrincessesBySpecies[parents.result] == nil or
+          referenceDronesBySpecies[parents.result] == nil
+        ) then
+      table.insert(targetSpeciesList, parents.result)
+    end
+  end
+  return targetSpeciesList
 end
 
 -- percent chance of 2 species turning into a target species
@@ -663,38 +679,52 @@ function isPureBred(bee1, bee2, targetSpecies)
   return false
 end
 
-local tArgs = { ... }
-if #tArgs ~= 1 then
-  print("Enter target species")
-  return
+function breedTargetSpecies(targetSpecies)
+  while true do
+    if #princesses == 0 then
+      write("Please add more princesses and press [Enter]")
+      io.read("*l")
+      catalogBees()
+    elseif #drones == 0 and next(referenceDronesBySpecies) == nil then
+      write("Please add more drones and press [Enter]")
+      io.read("*l")
+      catalogBees()
+    else
+      local mates = selectPair(targetSpecies)
+      if mates ~= nil then
+        if isPureBred(mates.princess, mates.drone, targetSpecies) then
+          break
+        else
+          breedBees(mates.princess, mates.drone)
+          catalogBees()
+        end
+      else
+        write("Please add more bee species and press [Enter]")
+        io.read("*l")
+        catalogBees()
+      end
+    end
+  end
+  print("Bees are purebred")
 end
+
+function breedAllSpecies(speciesList)
+  for i, targetSpecies in ipairs(speciesList) do
+    breedTargetSpecies(targetSpecies)
+  end
+end
+
+local tArgs = { ... }
 
 clearApiary()
 clearAnalyzer()
 catalogBees()
-while true do
-  if #princesses == 0 then
-    write("Please add more princesses and press [Enter]")
-    io.read("*l")
-    catalogBees()
-  elseif #drones == 0 and next(referenceDronesBySpecies) == nil then
-    write("Please add more drones and press [Enter]")
-    io.read("*l")
-    catalogBees()
-  else
-    local mates = selectPair(tArgs[1])
-    if mates ~= nil then
-      if isPureBred(mates.princess, mates.drone, tArgs[1]) then
-        break
-      else
-        breedBees(mates.princess, mates.drone)
-        catalogBees()
-      end
-    else
-      write("Please add more bee species and press [Enter]")
-      io.read("*l")
-      catalogBees()
-    end
+
+if #tArgs == 1 then
+  breedTargetSpecies(tArgs[1])
+else
+  while true do
+    breedAllSpecies(buildTargetSpeciesList())
   end
 end
-print("Bees are purebred")
+
