@@ -59,6 +59,16 @@ function fixBee(bee)
       bee.beeInfo.inactive.species = fixName(bee.beeInfo.inactive.species)
     end
   end
+  return bee
+end
+
+function fixParents(parents)
+  parents.allele1 = fixName(parents.allele1)
+  parents.allele2 = fixName(parents.allele2)
+  if parents.result then
+    parents.result = fixName(parents.result)
+  end
+  return parents
 end
 
 -- mutation graph
@@ -80,9 +90,10 @@ function addMutateTo(parent1, parent2, offspring, chance)
 end
 
 -- build mutation graph
-for _, mut in pairs(apiary.getBeeBreedingData()) do
-  addMutateTo(mut.allele1, mut.allele2, mut.result, mut.chance)
-  addMutateTo(mut.allele2, mut.allele1, mut.result, mut.chance)
+for _, parents in pairs(apiary.getBeeBreedingData()) do
+  fixParents(parents)
+  addMutateTo(parents.allele1, parents.allele2, parents.result, parents.chance)
+  addMutateTo(parents.allele2, parents.allele1, parents.result, parents.chance)
 end
 
 -- percent chance of 2 species turning into a target species
@@ -549,6 +560,7 @@ end
 
 function getMate(beeSpecies, targetSpecies)
   for i, parents in ipairs(apiary.getBeeParents(targetSpecies)) do
+    fixParents(parents)
     if beeSpecies == parents.allele1 then
       return parents.allele2
     elseif beeSpecies == parents.allele2 then
@@ -575,7 +587,7 @@ function selectPair(targetSpecies)
       referenceDronesBySpecies[targetSpecies] ~= nil)
   for i, v in ipairs(mateCombos) do
     local chance = mutateBeeChance(v[1], v[2], targetSpecies)
-    if (not haveReference and chance > baseChance / 2) or
+    if (not haveReference and chance >= baseChance / 2) or
         (haveReference and chance > 25) then
       local newMates = {
         ["princess"] = v[1],
@@ -610,9 +622,11 @@ function selectPair(targetSpecies)
     -- attempt lower tier bee
     local parentss = apiary.getBeeParents(targetSpecies)
     if #parentss > 0 then
+      print("lower tier")
       table.sort(parentss, function(a, b) return a.chance > b.chance end)
       local trySpecies = {}
       for i, parents in ipairs(parentss) do
+        fixParents(parents)
         if princessesBySpecies[parents.allele2] == nil and trySpecies[parents.allele2] == nil then
           table.insert(trySpecies, parents.allele2)
           trySpecies[parents.allele2] = true
