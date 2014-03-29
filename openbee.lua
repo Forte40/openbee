@@ -487,7 +487,7 @@ function analyzeBee(slot)
     useAnalyzer = false
     return nil
   end
-  printBee(inv.getStackInSlot(slot))
+  printBee(fixBee(inv.getStackInSlot(slot)))
   return slot
 end
 
