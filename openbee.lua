@@ -573,7 +573,7 @@ end
 --   or initiates breeding of lower species
 function selectPair(targetSpecies)
   print("targetting "..targetSpecies)
-  local baseChance
+  local baseChance = 0
   if #apiary.getBeeParents(targetSpecies) > 0 then
     local parents = apiary.getBeeParents(targetSpecies)[1]
     baseChance = parents.chance
