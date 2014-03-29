@@ -586,7 +586,7 @@ function selectPair(targetSpecies)
   local haveReference = (referencePrincessesBySpecies[targetSpecies] ~= nil and
       referenceDronesBySpecies[targetSpecies] ~= nil)
   for i, v in ipairs(mateCombos) do
-    local chance = mutateBeeChance(v[1], v[2], targetSpecies)
+    local chance = mutateBeeChance(v[1], v[2], targetSpecies) or 0
     if (not haveReference and chance >= baseChance / 2) or
         (haveReference and chance > 25) then
       local newMates = {
