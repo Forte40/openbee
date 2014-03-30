@@ -121,12 +121,14 @@ function mutateSpeciesChance(species1, species2, targetSpecies)
     chance[species1] = 50
     chance[species2] = 50
   end
-  for species, mutates in pairs(mutations[species1].mutateTo) do
-    local mutateChance = mutates[species2]
-    if mutateChance ~= nil then
-      chance[species] = mutateChance
-      chance[species1] = chance[species1] - mutateChance / 2
-      chance[species2] = chance[species2] - mutateChance / 2
+  if mutations[species1] ~= nil then
+    for species, mutates in pairs(mutations[species1].mutateTo) do
+      local mutateChance = mutates[species2]
+      if mutateChance ~= nil then
+        chance[species] = mutateChance
+        chance[species1] = chance[species1] - mutateChance / 2
+        chance[species2] = chance[species2] - mutateChance / 2
+      end
     end
   end
   return chance[targetSpecies] or 0.0
