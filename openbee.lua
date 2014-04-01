@@ -1,3 +1,10 @@
+-- version 2.0.0
+local version = {
+  ["major"] = 2,
+  ["minor"] = 0,
+  ["patch"] = 0
+}
+
 local apiarySide = "left"
 local chestSide = "gold_0"
 local chestDir = "up"
@@ -45,6 +52,26 @@ function choose(list1, list2)
   end
   return newList
 end
+
+local logCount = 0
+while fs.exists(string.format("bee.%d.log", logCount)) do
+  logCount = logCount + 1
+end
+local logFile = fs.open(string.format("bee.%d.log", logCount), "w")
+function log(msg)
+  msg = msg or ""
+  logFile.write(tostring(msg))
+  logFile.flush()
+  io.write(msg)
+end
+function logLine(msg)
+  msg = msg or ""
+  logFile.write(msg.."\n")
+  logFile.flush()
+  io.write(msg.."\n")
+end
+
+logLine(string.format("openbee version %d.%d.%d", version.major, version.minor, version.patch))
 
 -- fix for some versions returning bees.species.*
 function fixName(name)
@@ -309,7 +336,7 @@ function catalogBees()
 
   -- phase 1 -- analyze bees and mark reference bees
   inv.condenseItems()
-  print(string.format("scanning %d slots", invSize))
+  logLine(string.format("scanning %d slots", invSize))
   local referenceBeeCount = 0
   local freeSlot = 0
   local bees = inv.getAllStacks()
@@ -359,7 +386,7 @@ function catalogBees()
       break
     end
   end
-  print(string.format("found %d reference bees", referenceBeeCount))
+  logLine(string.format("found %d reference bees", referenceBeeCount))
   -- phase 2 -- ditch product and obsolete drones
   bees = inv.getAllStacks()
   local ditchSlot = 1
@@ -434,7 +461,7 @@ function catalogBees()
       end
     end
   end
-  print(string.format("found %d queens, %d princesses, %d drones",
+  logLine(string.format("found %d queens, %d princesses, %d drones",
       #queens, #princesses, #drones))
 end
 
@@ -498,9 +525,9 @@ end
 
 function analyzeBee(slot)
   clearAnalyzer()
-  write("analyzing bee ")
-  write(slot)
-  write("...")
+  log("analyzing bee ")
+  log(slot)
+  log("...")
   if inv.pushItem(analyzerDir, slot, 64, 3) > 0 then
     while inv.pullItem(analyzerDir, 9, 64, slot) == 0 do
       if inv.getStackInSlot(slot) ~= nil then
@@ -512,7 +539,7 @@ function analyzeBee(slot)
       sleep(1)
     end
   else
-    print("Missing Analyzer")
+    logLine("Missing Analyzer")
     useAnalyzer = false
     return nil
   end
@@ -521,9 +548,9 @@ function analyzeBee(slot)
 end
 
 function waitApiary()
-  write("waiting for apiary")
+  log("waiting for apiary")
   while apiary.getStackInSlot(1) ~= nil or apiary.getStackInSlot(2) ~= nil do
-    write(".")
+    log(".")
     sleep(5)
     if clearApiary() > 0 then
       -- breeding cycle done
@@ -531,7 +558,7 @@ function waitApiary()
     end
   end
   clearApiary()
-  print()
+  logLine()
 end
 
 function breedBees(princess, drone)
@@ -556,22 +583,22 @@ function printBee(bee)
     local active = bee.beeInfo.active
     local inactive = bee.beeInfo.inactive
     if active.species ~= inactive.species then
-      write(string.format("%s-%s", active.species, inactive.species))
+      log(string.format("%s-%s", active.species, inactive.species))
     else
-      write(active.species)
+      log(active.species)
     end
     if bee.rawName == "item.beedronege" then
-      write(" Drone")
+      log(" Drone")
     elseif bee.rawName == "item.beeprincessge" then
-      write(" Princess")
+      log(" Princess")
     else
-      write(" Queen")
+      log(" Queen")
     end
-    --write((active.nocturnal and " Nocturnal" or " "))
-    --write((active.tolerantFlyer and " Flyer" or " "))
-    --write((active.caveDwelling and " Cave" or " "))
-    print()
-    --print(string.format("Fert: %d  Speed: %d  Lifespan: %d", active.fertility, active.speed, active.lifespan))
+    --log((active.nocturnal and " Nocturnal" or " "))
+    --log((active.tolerantFlyer and " Flyer" or " "))
+    --log((active.caveDwelling and " Cave" or " "))
+    logLine()
+    --logLine(string.format("Fert: %d  Speed: %d  Lifespan: %d", active.fertility, active.speed, active.lifespan))
   else
   end
 end
@@ -590,13 +617,13 @@ end
 -- selects best pair for target species
 --   or initiates breeding of lower species
 function selectPair(targetSpecies)
-  print("targetting "..targetSpecies)
+  logLine("targetting "..targetSpecies)
   local baseChance = 0
   if #apiary.getBeeParents(targetSpecies) > 0 then
     local parents = apiary.getBeeParents(targetSpecies)[1]
     baseChance = parents.chance
     for _, s in ipairs(parents.specialConditions) do
-      print("    ", s)
+      logLine("    ", s)
     end
   end
   local mateCombos = choose(princesses, drones)
@@ -622,7 +649,7 @@ function selectPair(targetSpecies)
     table.sort(mates, compareMates)
     for i = math.min(#mates, 10), 1, -1 do
       local parents = mates[i]
-      print(beeName(parents.princess), " ", beeName(parents.drone), " ", parents.speciesChance, " ", parents.fertility, " ",
+      logLine(beeName(parents.princess), " ", beeName(parents.drone), " ", parents.speciesChance, " ", parents.fertility, " ",
             parents.flowering, " ", parents.nocturnal, " ", parents.tolerantFlyer, " ", parents.caveDwelling, " ",
             parents.lifespan, " ", parents.temperatureTolerance, " ", parents.humidityTolerance)
     end
@@ -631,7 +658,7 @@ function selectPair(targetSpecies)
     -- check for reference bees and breed if drone count is 1
     if referencePrincessesBySpecies[targetSpecies] ~= nil and
         referenceDronesBySpecies[targetSpecies] ~= nil then
-      print("Breeding extra drone from reference bees")
+      logLine("Breeding extra drone from reference bees")
       return {
         ["princess"] = referencePrincessesBySpecies[targetSpecies],
         ["drone"] = referenceDronesBySpecies[targetSpecies]
@@ -640,7 +667,7 @@ function selectPair(targetSpecies)
     -- attempt lower tier bee
     local parentss = apiary.getBeeParents(targetSpecies)
     if #parentss > 0 then
-      print("lower tier")
+      logLine("lower tier")
       table.sort(parentss, function(a, b) return a.chance > b.chance end)
       local trySpecies = {}
       for i, parents in ipairs(parentss) do
@@ -684,11 +711,11 @@ end
 function breedTargetSpecies(targetSpecies)
   while true do
     if #princesses == 0 then
-      write("Please add more princesses and press [Enter]")
+      log("Please add more princesses and press [Enter]")
       io.read("*l")
       catalogBees()
     elseif #drones == 0 and next(referenceDronesBySpecies) == nil then
-      write("Please add more drones and press [Enter]")
+      log("Please add more drones and press [Enter]")
       io.read("*l")
       catalogBees()
     else
@@ -701,13 +728,13 @@ function breedTargetSpecies(targetSpecies)
           catalogBees()
         end
       else
-        write("Please add more bee species and press [Enter]")
+        log("Please add more bee species and press [Enter]")
         io.read("*l")
         catalogBees()
       end
     end
   end
-  print("Bees are purebred")
+  logLine("Bees are purebred")
 end
 
 function breedAllSpecies(speciesList)
