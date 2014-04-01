@@ -6,9 +6,9 @@ local version = {
 }
 
 local apiarySide = "left"
-local chestSide = "gold_0"
+local chestSide = "top"
 local chestDir = "up"
-local productDir = "up"
+local productDir = "down"
 local analyzerDir = "east"
 
 local useAnalyzer = true
@@ -397,7 +397,7 @@ function catalogBees()
       -- remove analyzed drones where both the active and inactive species have
       --   a both reference princess and drone
       if bee.beeInfo == nil then
-        while inv.pushItem(productDir, slot, 64, ditchSlot) == 0 do
+        while inv.pushItem(chestDir, slot, 64, ditchSlot) == 0 do
           ditchSlot = ditchSlot + 1
           if ditchSlot > 108 then
             break
@@ -428,7 +428,7 @@ function catalogBees()
           end
         else
           -- ditch drone
-          while inv.pushItem(productDir, slot, 64, ditchSlot) == 0 do
+          while inv.pushItem(chestDir, slot, 64, ditchSlot) == 0 do
             ditchSlot = ditchSlot + 1
             if ditchSlot > 108 then
               break
@@ -491,7 +491,7 @@ function clearApiary()
         for productSlot, item in ipairs(bees) do
           if output.name == item.name and
               (item.maxSize - item.qty) >= output.qty then
-            apiary.pushItem(chestDir, slot, 64, productSlot)
+            apiary.pushItem(productDir, slot, 64, productSlot)
             found = true
             break
           end
@@ -500,7 +500,7 @@ function clearApiary()
           if freeSlot > invSize then
             error("Chest is full")
           end
-          apiary.pushItem(chestDir, slot, 64, freeSlot)
+          apiary.pushItem(productDir, slot, 64, freeSlot)
           bees[freeSlot] = inv.getStackInSlot(freeSlot)
         end
       end
