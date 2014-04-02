@@ -1,8 +1,7 @@
--- version 2.0.0
 local version = {
   ["major"] = 2,
   ["minor"] = 0,
-  ["patch"] = 0
+  ["patch"] = 1
 }
 
 local apiarySide = "left"
@@ -64,11 +63,17 @@ function log(msg)
   logFile.flush()
   io.write(msg)
 end
-function logLine(msg)
-  msg = msg or ""
-  logFile.write(msg.."\n")
+function logLine(...)
+  for i, msg in ipairs(arg) do
+    if msg == nil then
+      msg = ""
+    end
+    logFile.write(msg)
+    io.write(msg)
+  end
+  logFile.write("\n")
   logFile.flush()
-  io.write(msg.."\n")
+  io.write("\n")
 end
 
 logLine(string.format("openbee version %d.%d.%d", version.major, version.minor, version.patch))
