@@ -404,7 +404,7 @@ function catalogBees()
       if bee.beeInfo == nil then
         while inv.pushItem(chestDir, slot, 64, ditchSlot) == 0 do
           ditchSlot = ditchSlot + 1
-          if ditchSlot > 108 then
+          if ditchSlot > 125 then -- max possible size of ditch chest
             break
           end
         end
