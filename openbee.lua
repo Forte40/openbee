@@ -370,7 +370,7 @@ function catalogBees()
       if bee.beeInfo == nil then
         while inv.pushItem(productDir, slot, 64, ditchSlot) == 0 do
           ditchSlot = ditchSlot + 1
-          if ditchSlot > 108 then
+          if ditchSlot > invSize then
             break
           end
         end
@@ -401,7 +401,7 @@ function catalogBees()
           -- ditch drone
           while inv.pushItem(productDir, slot, 64, ditchSlot) == 0 do
             ditchSlot = ditchSlot + 1
-            if ditchSlot > 108 then
+            if ditchSlot > invSize then
               break
             end
           end
