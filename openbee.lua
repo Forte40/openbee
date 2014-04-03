@@ -1,7 +1,7 @@
 local version = {
   ["major"] = 2,
   ["minor"] = 0,
-  ["patch"] = 1
+  ["patch"] = 2
 }
 
 local apiarySide = "left"
@@ -106,8 +106,12 @@ end
 -- mutation graph
 
 local mutations = {}
+local beeNames = {}
 
 function addMutateTo(parent1, parent2, offspring, chance)
+  beeNames[parent1] = true
+  beeNames[parent2] = true
+  beeNames[offspring] = true
   if mutations[parent1] then
     if mutations[parent1].mutateTo[offspring] then
       mutations[parent1].mutateTo[offspring][parent2] = chance
@@ -755,10 +759,14 @@ clearAnalyzer()
 catalogBees()
 
 if #tArgs == 1 then
-  breedTargetSpecies(tArgs[1])
+  local targetSpecies = tArgs[1]:sub(1,1):upper()..tArgs[1]:sub(2):lower()
+  if beeNames[targetSpecies] == true then
+    breedTargetSpecies(targetSpecies)
+  else
+    print(string.format("Species '%s' not found.", targetSpecies))
+  end
 else
   while true do
     breedAllSpecies(buildTargetSpeciesList())
   end
 end
-
