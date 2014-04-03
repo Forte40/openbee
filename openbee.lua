@@ -1,3 +1,5 @@
+local alive, err = pcall(function()
+local logCount = 0
 local version = {
   ["major"] = 2,
   ["minor"] = 0,
@@ -52,7 +54,7 @@ function choose(list1, list2)
   return newList
 end
 
-local logCount = 0
+
 while fs.exists(string.format("bee.%d.log", logCount)) do
   logCount = logCount + 1
 end
@@ -769,4 +771,10 @@ else
   while true do
     breedAllSpecies(buildTargetSpeciesList())
   end
+end
+end)
+if not alive then
+  print("The program has crashed:")
+  printError(err)
+  print(string.format("Please post on the forum topic with the following file:\nbee.%d.log",logCount)
 end
