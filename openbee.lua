@@ -189,7 +189,7 @@ function buildMutationGraph(apiary)
   return mutations, beeNames
 end
 
-function buildTargetSpeciesList()
+function buildTargetSpeciesList(apiary)
   local targetSpeciesList = {}
   local parentss = apiary.getBeeBreedingData()
   for _, parents in pairs(parentss) do
@@ -786,7 +786,7 @@ function main(tArgs)
     end
   else
     while true do
-      breedAllSpecies(mutations, inv, apiary, scorers, buildTargetSpeciesList())
+      breedAllSpecies(mutations, inv, apiary, scorers, buildTargetSpeciesList(apiary))
     end
   end
 end
