@@ -193,11 +193,11 @@ function buildTargetSpeciesList(catalog, apiary)
   local targetSpeciesList = {}
   local parentss = apiary.getBeeBreedingData()
   for _, parents in pairs(parentss) do
-    if princessesBySpecies[parents.allele1] ~= nil and
-        princessesBySpecies[parents.allele2] ~= nil and
+    if catalog.princessesBySpecies[parents.allele1] ~= nil and
+        catalog.princessesBySpecies[parents.allele2] ~= nil and
         (
-          referencePrincessesBySpecies[parents.result] == nil or
-          referenceDronesBySpecies[parents.result] == nil
+          catalog.referencePrincessesBySpecies[parents.result] == nil or
+          catalog.referenceDronesBySpecies[parents.result] == nil
         ) then
       table.insert(targetSpeciesList, parents.result)
     end
