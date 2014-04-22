@@ -792,6 +792,7 @@ function main(tArgs)
   else
     while true do
       breedAllSpecies(mutations, inv, apiary, scorers, buildTargetSpeciesList(catalog, apiary))
+      catalog = catalogBees(inv, scorers)
     end
   end
 end
