@@ -762,8 +762,13 @@ function breedTargetSpecies(mutations, inv, apiary, scorers, targetSpecies)
 end
 
 function breedAllSpecies(mutations, inv, apiary, scorers, speciesList)
-  for i, targetSpecies in ipairs(speciesList) do
-    breedTargetSpecies(mutations, inv, apiary, scorers, targetSpecies)
+  if #speciesList == 0 then
+    log("Please add more bee species and press [Enter]")
+    io.read("*l")
+  else
+    for i, targetSpecies in ipairs(speciesList) do
+      breedTargetSpecies(mutations, inv, apiary, scorers, targetSpecies)
+    end
   end
 end
 
