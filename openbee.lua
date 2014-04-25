@@ -91,8 +91,11 @@ end
 -- fix for some versions returning bees.species.*
 local nameFix = {}
 function fixName(name)
+  print(name)
   local newName = name:gsub("bees%.species%.",""):gsub("^.", string.upper)
-  nameFix[newName] = name
+  if name ~= newName then
+    nameFix[newName] = name
+  end
   return newName
 end
 
@@ -699,13 +702,13 @@ function selectPair(mutations, scorers, catalog, targetSpecies)
       local trySpecies = {}
       for i, parents in ipairs(parentss) do
         fixParents(parents)
-        if catalog.princessesBySpecies[parents.allele2] == nil and trySpecies[parents.allele2] == nil then
-          table.insert(trySpecies, parents.allele2)
-          trySpecies[parents.allele2] = true
+        if catalog.princessesBySpecies[parents.allele2.name] == nil and trySpecies[parents.allele2.name] == nil then
+          table.insert(trySpecies, parents.allele2.name)
+          trySpecies[parents.allele2.name] = true
         end
-        if catalog.princessesBySpecies[parents.allele1] == nil and trySpecies[parents.allele1] == nil then
-          table.insert(trySpecies, parents.allele1)
-          trySpecies[parents.allele1] = true
+        if catalog.princessesBySpecies[parents.allele1.name] == nil and trySpecies[parents.allele1.name] == nil then
+          table.insert(trySpecies, parents.allele1.name)
+          trySpecies[parents.allele1.name] = true
         end
       end
       for _, species in ipairs(trySpecies) do
