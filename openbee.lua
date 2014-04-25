@@ -89,8 +89,11 @@ function choose(list1, list2)
 end
 
 -- fix for some versions returning bees.species.*
+local nameFix = {}
 function fixName(name)
-  return name:gsub("bees%.species%.",""):gsub("^.", string.upper)
+  local newName = name:gsub("bees%.species%.",""):gsub("^.", string.upper)
+  nameFix[newName] = name
+  return newName
 end
 
 function fixBee(bee)
@@ -174,18 +177,9 @@ function buildMutationGraph(apiary)
     addMutateTo(parents.allele1, parents.allele2, parents.result, parents.chance)
     addMutateTo(parents.allele2, parents.allele1, parents.result, parents.chance)
   end
-  mutations.getBeeParents = apiary.getBeeParents
-  --[[ this loop takes too long
-  for species, _ in pairs(beeNames) do
-    if mutations[species] ~= nil then
-      mutations[species].mutateFrom = apiary.getBeeParents(species)
-    else
-      mutations[species] = {
-        mutateFrom = apiary.getBeeParents(species)
-      }
-    end
+  mutations.getBeeParents = function(name)
+    return apiary.getBeeParents((nameFix[name] or name))
   end
-  --]]
   return mutations, beeNames
 end
 
