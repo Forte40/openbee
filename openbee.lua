@@ -555,21 +555,31 @@ function clearApiary(inv, apiary)
         apiary.pushItem(chestDir, slot, 64, freeSlot)
         bees[freeSlot] = inv.getStackInSlot(freeSlot)
       else
-        local found = false
-        for productSlot, item in ipairs(bees) do
-          if output.name == item.name and
-              (item.maxSize - item.qty) >= output.qty then
-            apiary.pushItem(productDir, slot, 64, productSlot)
-            found = true
-            break
+        if chestDir == productDir then
+          local found = false
+          for productSlot, item in ipairs(bees) do
+            if output.name == item.name and
+                (item.maxSize - item.qty) >= output.qty then
+              apiary.pushItem(productDir, slot, 64, productSlot)
+              found = true
+              break
+            end
           end
-        end
-        if not found then
-          if freeSlot > inv.size then
-            error("Chest is full")
+          if not found then
+            if freeSlot > inv.size then
+              error("Chest is full")
+            end
+            apiary.pushItem(productDir, slot, 64, freeSlot)
+            bees[freeSlot] = inv.getStackInSlot(freeSlot)
           end
-          apiary.pushItem(productDir, slot, 64, freeSlot)
-          bees[freeSlot] = inv.getStackInSlot(freeSlot)
+        else
+          local productSlot = 1
+          while apiary.pushItem(productDir, slot, 64, productSlot) == 0 do
+            productSlot = productSlot + 1
+            if productSlot > 108 then
+              break
+            end
+          end          
         end
       end
     end
