@@ -1,14 +1,35 @@
 local version = {
   ["major"] = 2,
-  ["minor"] = 0,
-  ["patch"] = 3
+  ["minor"] = 1,
+  ["patch"] = 0
 }
 
-local apiarySide = "left"
-local chestSide = "top"
-local chestDir = "up"
-local productDir = "down"
-local analyzerDir = "east"
+function loadFile(fileName)
+  local f = fs.open(fileName, "r")
+  if f ~= nil then
+    local data = f.readAll()
+    f.close()
+    return textutils.unserialize(data)
+  end
+end
+
+function saveFile(fileName, data)
+  local f = fs.open(fileName, "w")
+  f.write(serialize(data))
+  f.close()
+end
+
+local config = loadFile("bee.config")
+if config == nil then
+  config = {
+    ["apiarySide"] = "left",
+    ["chestSide"] = "top",
+    ["chestDir"] = "up",
+    ["productDir"] = "down",
+    ["analyzerDir"] = "east"
+  }
+  saveFile("bee.config", config)
+end
 
 local useAnalyzer = true
 local useReferenceBees = true
@@ -61,7 +82,7 @@ function logLine(...)
 end
 
 function getPeripherals()
-  return peripheral.wrap(chestSide), peripheral.wrap(apiarySide)
+  return peripheral.wrap(config.chestSide), peripheral.wrap(config.apiarySide)
 end
 
 -- utility functions ------------------
@@ -463,7 +484,7 @@ function catalogBees(inv, scorers)
       -- remove analyzed drones where both the active and inactive species have
       --   a both reference princess and drone
       if bee.beeInfo == nil then
-        while inv.pushItem(chestDir, slot, 64, ditchSlot) == 0 do
+        while inv.pushItem(config.chestDir, slot, 64, ditchSlot) == 0 do
           ditchSlot = ditchSlot + 1
           if ditchSlot > 125 then -- max possible size of ditch chest
             break
@@ -494,7 +515,7 @@ function catalogBees(inv, scorers)
           end
         else
           -- ditch drone
-          while inv.pushItem(chestDir, slot, 64, ditchSlot) == 0 do
+          while inv.pushItem(config.chestDir, slot, 64, ditchSlot) == 0 do
             ditchSlot = ditchSlot + 1
             if ditchSlot > 108 then
               break
@@ -551,15 +572,15 @@ function clearApiary(inv, apiary)
           error("Chest is full")
         end
         beeCount = beeCount + 1
-        apiary.pushItem(chestDir, slot, 64, freeSlot)
+        apiary.pushItem(config.chestDir, slot, 64, freeSlot)
         bees[freeSlot] = inv.getStackInSlot(freeSlot)
       else
-        if chestDir == productDir then
+        if config.chestDir == config.productDir then
           local found = false
           for productSlot, item in ipairs(bees) do
             if output.name == item.name and
                 (item.maxSize - item.qty) >= output.qty then
-              apiary.pushItem(productDir, slot, 64, productSlot)
+              apiary.pushItem(config.productDir, slot, 64, productSlot)
               found = true
               break
             end
@@ -568,12 +589,12 @@ function clearApiary(inv, apiary)
             if freeSlot > inv.size then
               error("Chest is full")
             end
-            apiary.pushItem(productDir, slot, 64, freeSlot)
+            apiary.pushItem(config.productDir, slot, 64, freeSlot)
             bees[freeSlot] = inv.getStackInSlot(freeSlot)
           end
         else
           local productSlot = 1
-          while apiary.pushItem(productDir, slot, 64, productSlot) == 0 do
+          while apiary.pushItem(config.productDir, slot, 64, productSlot) == 0 do
             productSlot = productSlot + 1
             if productSlot > 108 then
               break
@@ -596,7 +617,7 @@ function clearAnalyzer(inv)
         error("chest is full")
       end
     end
-    inv.pullItem(analyzerDir, analyzerSlot, 64, invSlot)
+    inv.pullItem(config.analyzerDir, analyzerSlot, 64, invSlot)
   end
 end
 
@@ -605,8 +626,8 @@ function analyzeBee(inv, slot)
   log("analyzing bee ")
   log(slot)
   log("...")
-  if inv.pushItem(analyzerDir, slot, 64, 3) > 0 then
-    while inv.pullItem(analyzerDir, 9, 64, slot) == 0 do
+  if inv.pushItem(config.analyzerDir, slot, 64, 3) > 0 then
+    while inv.pullItem(config.analyzerDir, 9, 64, slot) == 0 do
       if inv.getStackInSlot(slot) ~= nil then
         slot = slot + 1
         if slot > inv.size then
@@ -641,8 +662,8 @@ end
 function breedBees(inv, apiary, princess, drone)
   clearApiary(inv, apiary)
   waitApiary(inv, apiary)
-  apiary.pullItem(chestDir, princess.slot, 1, 1)
-  apiary.pullItem(chestDir, drone.slot, 1, 2)
+  apiary.pullItem(config.chestDir, princess.slot, 1, 1)
+  apiary.pullItem(config.chestDir, drone.slot, 1, 2)
   waitApiary(inv, apiary)
 end
 
