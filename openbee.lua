@@ -747,7 +747,7 @@ function breedTargetSpecies(mutations, inv, apiary, scorers, targetSpecies)
       log("Please add more princesses and press [Enter]")
       io.read("*l")
       catalog = catalogBees(inv, scorers)
-    elseif #catalog.drones == 0 and next(referenceDronesBySpecies) == nil then
+    elseif #catalog.drones == 0 and next(catalog.referenceDronesBySpecies) == nil then
       log("Please add more drones and press [Enter]")
       io.read("*l")
       catalog = catalogBees(inv, scorers)
