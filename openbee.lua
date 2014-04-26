@@ -15,7 +15,7 @@ end
 
 function saveFile(fileName, data)
   local f = fs.open(fileName, "w")
-  f.write(serialize(data))
+  f.write(textutils.serialize(data))
   f.close()
 end
 
