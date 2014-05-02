@@ -725,11 +725,11 @@ function selectPair(mutations, scorers, catalog, targetSpecies)
       local trySpecies = {}
       for i, parents in ipairs(parentss) do
         fixParents(parents)
-        if catalog.princessesBySpecies[parents.allele2] == nil and trySpecies[parents.allele2] == nil then
+        if catalog.referencePrincessesBySpecies[parents.allele2] == nil and trySpecies[parents.allele2] == nil then
           table.insert(trySpecies, parents.allele2)
           trySpecies[parents.allele2] = true
         end
-        if catalog.princessesBySpecies[parents.allele1] == nil and trySpecies[parents.allele1] == nil then
+        if catalog.referencePrincessesBySpecies[parents.allele1] == nil and trySpecies[parents.allele1] == nil then
           table.insert(trySpecies, parents.allele1)
           trySpecies[parents.allele1] = true
         end
