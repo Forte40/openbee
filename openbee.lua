@@ -66,6 +66,7 @@ function setPriorities(priority)
     end
     if not found then
       species = trait
+    end
   end
   return species
 end
