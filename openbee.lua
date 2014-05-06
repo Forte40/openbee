@@ -49,6 +49,27 @@ local traitPriority = {
   "territory"
 }
 
+function setPriorities(priority)
+  local species = nil
+  local priorityNum = 1
+  for traitNum, trait in ipairs(priority) do
+    local found = false
+    for traitPriorityNum = 1, #traitPriority do
+      if trait == traitPriority[traitPriorityNum] then
+        found = true
+        if priorityNum ~= traitPriorityNum then
+          traitPriority[priorityNum], traitPriority[traitPriorityNum] = traitPriority[traitPriorityNum], traitPriority[priorityNum]
+        end
+        priorityNum = priorityNum + 1
+        break
+      end
+    end
+    if not found then
+      species = trait
+  end
+  return species
+end
+
 -- logging ----------------------------
 
 local logFile
@@ -804,6 +825,12 @@ end
 
 function main(tArgs)
   logLine(string.format("openbee version %d.%d.%d", version.major, version.minor, version.patch))
+  local targetSpecies = setPriorities(tArgs)
+  log("priority:")
+  for _, priority in ipairs(traitPriority) do
+    log(" "..priority)
+  end
+  logLine("")
   local inv, apiary = getPeripherals()
   inv.size = inv.getInventorySize()
   local mutations, beeNames = buildMutationGraph(apiary)
@@ -813,7 +840,7 @@ function main(tArgs)
   local catalog = catalogBees(inv, scorers)
 
   if #tArgs == 1 then
-    local targetSpecies = tArgs[1]:sub(1,1):upper()..tArgs[1]:sub(2):lower()
+    targetSpecies = tArgs[1]:sub(1,1):upper()..tArgs[1]:sub(2):lower()
     if beeNames[targetSpecies] == true then
       breedTargetSpecies(mutations, inv, apiary, scorers, targetSpecies)
     else
