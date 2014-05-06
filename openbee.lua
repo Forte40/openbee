@@ -841,7 +841,7 @@ function main(tArgs)
   clearAnalyzer(inv)
   local catalog = catalogBees(inv, scorers)
 
-  if #tArgs == 1 then
+  if targetSpecies ~= nil then
     targetSpecies = tArgs[1]:sub(1,1):upper()..tArgs[1]:sub(2):lower()
     if beeNames[targetSpecies] == true then
       breedTargetSpecies(mutations, inv, apiary, scorers, targetSpecies)
