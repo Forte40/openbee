@@ -58,7 +58,8 @@ function setPriorities(priority)
       if trait == traitPriority[traitPriorityNum] then
         found = true
         if priorityNum ~= traitPriorityNum then
-          traitPriority[priorityNum], traitPriority[traitPriorityNum] = traitPriority[traitPriorityNum], traitPriority[priorityNum]
+          table.remove(traitPriority, traitPriorityNum)
+          table.insert(traitPriority, priorityNum)
         end
         priorityNum = priorityNum + 1
         break
