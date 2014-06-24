@@ -679,7 +679,7 @@ function waitApiary(inv, apiary)
     end
   end
   clearApiary(inv, apiary)
-  inv.condense()
+  inv.condenseItems()
   logLine()
 end
 
