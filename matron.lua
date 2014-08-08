@@ -66,6 +66,7 @@ while true do
     if apiary.getStackInSlot(1) == nil then
       if apiary.pullItem(chestDir, princessSlot, 1, 1) > 0 then
         stats["Generations"] = stats["Generations"] + 1
+      end
       apiary.pullItem(chestDir, droneSlot, 1, 2)
     end
   end
