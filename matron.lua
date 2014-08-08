@@ -8,7 +8,7 @@ local wait = 5
 --------------------------
 
 local apiaries = {}
-local stats = {"Generations" = 0}
+local stats = {["Generations"] = 0}
 
 function printStats()
   term.clear()
