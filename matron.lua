@@ -8,6 +8,16 @@ local wait = 5
 --------------------------
 
 local apiaries = {}
+local stats = {"Generations" = 0}
+
+function printStats()
+  term.clear()
+  print(string.format("Watching %d apiaries", #apiaries))
+  print()
+  for stat, value in pairs(stats) do
+    print(string.format("%s : %d", stat, value))
+  end
+end
 
 -- find apiaries
 local sides = peripheral.getNames()
@@ -19,10 +29,11 @@ end
 if #apiaries == 0 then
   error("No apiaries")
 else
-  print("Found ",#apiaries, " apiaries")
+  printStats()
 end
 
 while true do
+  local statChange = false
   rs.setOutput(redstoneSide, true)
   for i, apiary in ipairs(apiaries) do
     -- look for outputs
@@ -40,15 +51,27 @@ while true do
           foundDrone = true
         else
           apiary.pushItemIntoSlot(chestDir, slot, 64)
+          if beeData.rawName ~= "item.beedronege" then
+            statChange = true
+            if stats[beeData.name] ~= nil then
+              stats[beeData.name] = stats[beeData.name] + beeData.qty
+            else
+              stats[beeData.name] = beeData.qty
+            end
+          end
         end
       end
     end
     -- breed princess and 1 drone
     if apiary.getStackInSlot(1) == nil then
-      apiary.pullItem(chestDir, princessSlot, 1, 1)
+      if apiary.pullItem(chestDir, princessSlot, 1, 1) > 0 then
+        stats["Generations"] = stats["Generations"] + 1
       apiary.pullItem(chestDir, droneSlot, 1, 2)
     end
   end
   rs.setOutput(redstoneSide, false)
+  if statChange then
+    printStats()
+  end
   sleep(wait)
 end
