@@ -12,6 +12,7 @@ local stats = {["Generations"] = 0}
 
 function printStats()
   term.clear()
+  term.setCursorPos(1, 1)
   print(string.format("Watching %d apiaries", #apiaries))
   print()
   for stat, value in pairs(stats) do
