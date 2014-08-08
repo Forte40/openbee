@@ -1,7 +1,7 @@
 -- configuration ---------
-local princessSlot = 1
-local droneSlot = 2
-local otherSlot = 3
+local princessSlot = 26
+local droneSlot = 27
+local otherSlot = 1
 local chestDir = "up"
 local redstoneSide = "top"
 local wait = 5
@@ -28,10 +28,12 @@ while true do
     -- look for outputs
     local inv = apiary.getAllStacks()
     local foundDrone = false
+    local foundPrincess = false
     for slot, beeData in pairs(inv) do
       if slot >= 3 and slot <= 9 then
         if beeData.rawName == "item.beeprincessge" then
           apiary.pushItemIntoSlot(chestDir, slot, 1, princessSlot)
+          foundPrincess = true
         elseif foundDrone == false and beeData.rawName == "item.beedronege" then
           apiary.pushItemIntoSlot(chestDir, slot, 1, droneSlot)
           apiary.pushItemIntoSlot(chestDir, slot, 64)
@@ -42,7 +44,7 @@ while true do
       end
     end
     -- breed princess and 1 drone
-    if foundDrone then
+    if foundPrincess then
       apiary.pullItem(chestDir, princessSlot, 1, 1)
       apiary.pullItem(chestDir, droneSlot, 1, 2)
     end
