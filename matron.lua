@@ -44,7 +44,7 @@ while true do
       end
     end
     -- breed princess and 1 drone
-    if foundPrincess then
+    if apiary.getStackInSlot(1) == nil then
       apiary.pullItem(chestDir, princessSlot, 1, 1)
       apiary.pullItem(chestDir, droneSlot, 1, 2)
     end
