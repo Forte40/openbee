@@ -15,6 +15,10 @@ local files = {
   {
     name = "openbee",
     url = "https://raw.github.com/Forte40/openbee/"..branch.."/openbee.lua"
+  },
+  {
+    name = "matron",
+    url = "https://raw.github.com/Forte40/openbee/"..branch.."/matron.lua"
   }
 }
 

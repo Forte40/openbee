@@ -1,6 +1,6 @@
 local version = {
   ["major"] = 2,
-  ["minor"] = 1,
+  ["minor"] = 2,
   ["patch"] = 0
 }
 
@@ -443,110 +443,137 @@ function catalogBees(inv, scorers)
   catalog.queens = {}
   catalog.referenceDronesBySpecies = {}
   catalog.referencePrincessesBySpecies = {}
+  catalog.referencePairBySpecies = {}
 
-  -- phase 1 -- analyze bees and mark reference bees
+  -- phase 0 -- analyze bees and ditch product
   inv.condenseItems()
   logLine(string.format("scanning %d slots", inv.size))
-  local referenceBeeCount = 0
-  local freeSlot = 0
-  local bees = inv.getAllStacks()
-  for slot = 1, inv.size do
-    local bee = bees[slot]
-    if bee ~= nil then
-      if bee.beeInfo ~= nil then
-        if bee.beeInfo.isAnalyzed == false and useAnalyzer == true then
-          local newSlot = analyzeBee(inv, slot)
-          if newSlot ~= nil and newSlot ~= slot then
-            inv.swapStacks(slot, newSlot)
-          end
-          bees[slot] = inv.getStackInSlot(slot)
-          bee = bees[slot]
-        end
-        fixBee(bee)
-        if useReferenceBees then
-          local referenceBySpecies = nil
-          if bee.rawName == "item.beedronege" then -- drones
-            referenceBySpecies = catalog.referenceDronesBySpecies
-          elseif bee.rawName == "item.beeprincessge" then -- princess
-            referenceBySpecies = catalog.referencePrincessesBySpecies
-          end
-          if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed then
-            if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
-              local species = bee.beeInfo.active.species
-              if referenceBySpecies[species] == nil or
-                  compareBees(scorers, bee, referenceBySpecies[species]) then
-                if referenceBySpecies[species] == nil then
-                  referenceBeeCount = referenceBeeCount + 1
-                  if slot ~= referenceBeeCount then
-                    inv.swapStacks(slot, referenceBeeCount)
-                  end
-                  bee.slot = referenceBeeCount
-                else
-                  inv.swapStacks(slot, referenceBySpecies[species].slot)
-                  bee.slot = referenceBySpecies[species].slot
-                end
-                referenceBySpecies[species] = bee
-              end
-            end
-          end
-        end
-      end
-    else
-      freeSlot = slot
-      break
-    end
-  end
-  logLine(string.format("found %d reference bees", referenceBeeCount))
-  -- phase 2 -- ditch product and obsolete drones
-  bees = inv.getAllStacks()
-  local ditchSlot = 1
-  for slot = 1 + referenceBeeCount, inv.size do
-    local bee = bees[slot]
-    if bee ~= nil then
-      fixBee(bee)
-      -- remove analyzed drones where both the active and inactive species have
-      --   a both reference princess and drone
+  if useAnalyzer == true then
+    local analyzeCount = 0
+    local bees = inv.getAllStacks()
+    for slot, bee in pairs(bees) do
       if bee.beeInfo == nil then
-        while inv.pushItem(config.chestDir, slot, 64, ditchSlot) == 0 do
-          ditchSlot = ditchSlot + 1
-          if ditchSlot > 125 then -- max possible size of ditch chest
-            break
-          end
-        end
-      elseif (
-        bee.rawName == "item.beedronege" and
-        bee.beeInfo.isAnalyzed and (
-          catalog.referencePrincessesBySpecies[bee.beeInfo.active.species] ~= nil and
-          catalog.referenceDronesBySpecies[bee.beeInfo.active.species] ~= nil and
-          catalog.referencePrincessesBySpecies[bee.beeInfo.inactive.species] ~= nil and
-          catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species] ~= nil
-        )
-      ) then
-        local activeDroneTraits = betterTraits(scorers, catalog.referenceDronesBySpecies[bee.beeInfo.active.species], bee)
-        local inactiveDroneTraits = betterTraits(scorers, catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species], bee)
-        if #activeDroneTraits > 0 or #inactiveDroneTraits > 0 then
-          -- manipulate reference bee to have better yet less important attribute
-          -- this ditches more bees while keeping at least one with the attribute
-          -- the cataloging step will fix the manipulation
-          for i, trait in ipairs(activeDroneTraits) do
-            catalog.referenceDronesBySpecies[bee.beeInfo.active.species].beeInfo.active[trait] = bee.beeInfo.active[trait]
-            catalog.referenceDronesBySpecies[bee.beeInfo.active.species].beeInfo.inactive[trait] = bee.beeInfo.inactive[trait]
-          end
-          for i, trait in ipairs(inactiveDroneTraits) do
-            catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species].beeInfo.active[trait] = bee.beeInfo.active[trait]
-            catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species].beeInfo.inactive[trait] = bee.beeInfo.inactive[trait]
-          end
+        inv.pushItem(config.chestDir, slot)
+      elseif not bee.beeInfo.isAnalyzed then
+        analyzeBee(inv, slot)
+        analyzeCount = analyzeCount + 1
+      end
+    end
+    logLine(string.format("analyzed %d new bees", analyzeCount))
+  end
+  -- phase 1 -- mark reference bees
+  inv.condenseItems()
+  local referenceBeeCount = 0
+  local referenceDroneCount = 0
+  local referencePrincessCount = 0
+  local isDrone = nil
+  local bees = inv.getAllStacks()
+  if useReferenceBees then
+    for slot = 1, #bees do
+      local bee = bees[slot]
+      if bee.beeInfo ~= nil then
+        fixBee(bee)
+        local referenceBySpecies = nil
+        if bee.rawName == "item.beedronege" then -- drones
+          isDrone = true
+          referenceBySpecies = catalog.referenceDronesBySpecies
+        elseif bee.rawName == "item.beeprincessge" then -- princess
+          isDrone = false
+          referenceBySpecies = catalog.referencePrincessesBySpecies
         else
-          -- ditch drone
-          while inv.pushItem(config.chestDir, slot, 64, ditchSlot) == 0 do
-            ditchSlot = ditchSlot + 1
-            if ditchSlot > 108 then
-              break
+          isDrone = nil
+        end
+        if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed and bee.beeInfo.active.species == bee.beeInfo.inactive.species then
+          local species = bee.beeInfo.active.species
+          if referenceBySpecies[species] == nil or
+              compareBees(scorers, bee, referenceBySpecies[species]) then
+            if referenceBySpecies[species] == nil then
+              referenceBeeCount = referenceBeeCount + 1
+              if isDrone == true then
+                referenceDroneCount = referenceDroneCount + 1
+              elseif isDrone == false then
+                referencePrincessCount = referencePrincessCount + 1
+              end
+              if slot ~= referenceBeeCount then
+                inv.swapStacks(slot, referenceBeeCount)
+              end
+              bee.slot = referenceBeeCount
+            else
+              inv.swapStacks(slot, referenceBySpecies[species].slot)
+              bee.slot = referenceBySpecies[species].slot
+            end
+            referenceBySpecies[species] = bee
+            if catalog.referencePrincessesBySpecies[species] ~= nil and catalog.referenceDronesBySpecies[species] ~= nil then
+              catalog.referencePairBySpecies[species] = true
             end
           end
         end
       end
-    else
+    end
+    logLine(string.format("found %d reference bees, %d princesses, %d drones", referenceBeeCount, referencePrincessCount, referenceDroneCount))
+    log("reference pairs")
+    for species, _ in pairs(catalog.referencePairBySpecies) do
+      log(", ")
+      log(species)
+    end
+    logLine()
+  end
+  -- phase 2 -- ditch obsolete drones
+  bees = inv.getAllStacks()
+  local extraDronesBySpecies = {}
+  local ditchSlot = 1
+  for slot = 1 + referenceBeeCount, #bees do
+    local bee = bees[slot]
+    fixBee(bee)
+    bee.slot = slot
+    -- remove analyzed drones where both the active and inactive species have
+    --   a both reference princess and drone
+    if (
+      bee.rawName == "item.beedronege" and
+      bee.beeInfo.isAnalyzed and (
+        catalog.referencePrincessesBySpecies[bee.beeInfo.active.species] ~= nil and
+        catalog.referenceDronesBySpecies[bee.beeInfo.active.species] ~= nil and
+        catalog.referencePrincessesBySpecies[bee.beeInfo.inactive.species] ~= nil and
+        catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species] ~= nil
+      )
+    ) then
+      local activeDroneTraits = betterTraits(scorers, catalog.referenceDronesBySpecies[bee.beeInfo.active.species], bee)
+      local inactiveDroneTraits = betterTraits(scorers, catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species], bee)
+      if #activeDroneTraits > 0 or #inactiveDroneTraits > 0 then
+        -- keep current bee because it has some trait that is better
+        -- manipulate reference bee to have better yet less important attribute
+        -- this ditches more bees while keeping at least one with the attribute
+        -- the cataloging step will fix the manipulation
+        for i, trait in ipairs(activeDroneTraits) do
+          catalog.referenceDronesBySpecies[bee.beeInfo.active.species].beeInfo.active[trait] = bee.beeInfo.active[trait]
+          catalog.referenceDronesBySpecies[bee.beeInfo.active.species].beeInfo.inactive[trait] = bee.beeInfo.inactive[trait]
+        end
+        for i, trait in ipairs(inactiveDroneTraits) do
+          catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species].beeInfo.active[trait] = bee.beeInfo.active[trait]
+          catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species].beeInfo.inactive[trait] = bee.beeInfo.inactive[trait]
+        end
+      else
+        -- keep 1 extra drone around if purebreed
+        -- this speeds up breeding by not ditching drones you just breed from reference bees
+        -- when the reference bee drone output is still mutating
+        local ditchDrone = nil
+        if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
+          if extraDronesBySpecies[bee.beeInfo.active.species] == nil then
+            extraDronesBySpecies[bee.beeInfo.active.species] = bee
+            bee = nil
+          elseif compareBees(bee, extraDronesBySpecies[bee.beeInfo.active.species]) then
+            ditchDrone = extraDronesBySpecies[bee.beeInfo.active.species]
+            extraDronesBySpecies[bee.beeInfo.active.species] = bee
+            bee = ditchDrone
+          end
+        end
+        -- ditch drone
+        if bee ~= nil then
+          if inv.pushItem(config.chestDir, bee.slot) == 0 then
+            error("ditch chest is full")
+          end
+        end
+      end
     end
   end
   -- phase 3 -- catalog bees
@@ -579,68 +606,42 @@ end
 -- interaction functions --------------
 
 function clearApiary(inv, apiary)
-  local beeCount = 0
-  local freeSlot = 1
-  local productSlot = 0
-  local bees = inv.getAllStacks()
-  local outputs = apiary.getAllStacks()
-  for slot = 3, 9 do
-    local output = outputs[slot]
-    if output ~= nil then
-      while bees[freeSlot] ~= nil do
-        freeSlot = freeSlot + 1
+  local bees = apiary.getAllStacks()
+  -- wait for queen to die
+  if (bees[1] ~= nil and bees[1].rawName == "item.beequeenge")
+      or (bees[1] ~= nil and bees[2] ~= nil) then
+    log("waiting for apiary")
+    while true do
+      sleep(5)
+      bees = apiary.getAllStacks()
+      if bees[1] == nil then
+        break
       end
-      if output.rawName == "item.beedronege" or output.rawName == "item.beeprincessge" then
-        if freeSlot > inv.size then
-          error("Chest is full")
-        end
-        beeCount = beeCount + 1
-        apiary.pushItem(config.chestDir, slot, 64, freeSlot)
-        bees[freeSlot] = inv.getStackInSlot(freeSlot)
+      log(".")
+    end
+  end
+  logLine()
+  for slot = 3, 9 do
+    local bee = bees[slot]
+    if bee ~= nil then
+      if bee.rawName == "item.beedronege" or bee.rawName == "item.beeprincessge" then
+        apiary.pushItem(config.chestDir, slot, 64)
       else
-        if config.chestDir == config.productDir then
-          local found = false
-          for productSlot, item in ipairs(bees) do
-            if output.name == item.name and
-                (item.maxSize - item.qty) >= output.qty then
-              apiary.pushItem(config.productDir, slot, 64, productSlot)
-              found = true
-              break
-            end
-          end
-          if not found then
-            if freeSlot > inv.size then
-              error("Chest is full")
-            end
-            apiary.pushItem(config.productDir, slot, 64, freeSlot)
-            bees[freeSlot] = inv.getStackInSlot(freeSlot)
-          end
-        else
-          local productSlot = 1
-          while apiary.pushItem(config.productDir, slot, 64, productSlot) == 0 do
-            productSlot = productSlot + 1
-            if productSlot > 108 then
-              break
-            end
-          end          
-        end
+        apiary.pushItem(config.productDir, slot, 64)
       end
     end
   end
-  return beeCount
 end
 
 function clearAnalyzer(inv)
-  local invSlot = 1
   local bees = inv.getAllStacks()
+  if #bees == inv.size then
+    error("chest is full")
+  end
   for analyzerSlot = 9, 12 do
-    while bees[invSlot] ~= nil do
-      invSlot = invSlot + 1
-      if invSlot > inv.size then
-        error("chest is full")
-      end
+    if inv.pullItem(config.analyzerDir, analyzerSlot) == 0 then
+      break
     end
-    inv.pullItem(config.analyzerDir, analyzerSlot, 64, invSlot)
   end
 end
 
@@ -649,13 +650,20 @@ function analyzeBee(inv, slot)
   log("analyzing bee ")
   log(slot)
   log("...")
+  local freeSlot
   if inv.pushItem(config.analyzerDir, slot, 64, 3) > 0 then
-    while inv.pullItem(config.analyzerDir, 9, 64, slot) == 0 do
-      if inv.getStackInSlot(slot) ~= nil then
-        slot = slot + 1
-        if slot > inv.size then
-          error("chest is full")
+    while true do
+      -- constantly check in case of inventory manipulation by player
+      local bees = inv.getAllStacks()
+      freeSlot = nil
+      for i = 1, inv.size do
+        if bees[i] == nil then
+          freeSlot = i
+          break
         end
+      end
+      if inv.pullItem(config.analyzerDir, 9) > 0 then
+        break
       end
       sleep(1)
     end
@@ -664,30 +672,22 @@ function analyzeBee(inv, slot)
     useAnalyzer = false
     return nil
   end
-  printBee(fixBee(inv.getStackInSlot(slot)))
-  return slot
-end
-
-function waitApiary(inv, apiary)
-  log("waiting for apiary")
-  while apiary.getStackInSlot(1) ~= nil or apiary.getStackInSlot(2) ~= nil do
-    log(".")
-    sleep(5)
-    if clearApiary(inv, apiary) > 0 then
-      -- breeding cycle done
-      break
-    end
-  end
-  clearApiary(inv, apiary)
-  logLine()
+  printBee(fixBee(inv.getStackInSlot(freeSlot)))
+  return freeSlot
 end
 
 function breedBees(inv, apiary, princess, drone)
   clearApiary(inv, apiary)
-  waitApiary(inv, apiary)
   apiary.pullItem(config.chestDir, princess.slot, 1, 1)
   apiary.pullItem(config.chestDir, drone.slot, 1, 2)
-  waitApiary(inv, apiary)
+  clearApiary(inv, apiary)
+end
+
+function breedQueen(inv, apiary, queen)
+  log("breeding queen")
+  clearApiary(inv, apiary)
+  apiary.pullItem(config.chestDir, queen.slot, 1, 1)
+  clearApiary(inv, apiary)
 end
 
 -- selects best pair for target species
@@ -744,15 +744,22 @@ function selectPair(mutations, scorers, catalog, targetSpecies)
     local parentss = mutations.getBeeParents(targetSpecies)
     if #parentss > 0 then
       logLine("lower tier")
+      --print(textutils.serialize(catalog.referencePrincessesBySpecies))
       table.sort(parentss, function(a, b) return a.chance > b.chance end)
       local trySpecies = {}
       for i, parents in ipairs(parentss) do
         fixParents(parents)
-        if catalog.referencePrincessesBySpecies[parents.allele2] == nil and trySpecies[parents.allele2] == nil then
+        if (catalog.referencePairBySpecies[parents.allele2] == nil        -- no reference bee pair
+            or catalog.referenceDronesBySpecies[parents.allele2].qty <= 1 -- no extra reference drone
+            or catalog.princessesBySpecies[parents.allele2] == nil)       -- no converted princess
+            and trySpecies[parents.allele2] == nil then
           table.insert(trySpecies, parents.allele2)
           trySpecies[parents.allele2] = true
         end
-        if catalog.referencePrincessesBySpecies[parents.allele1] == nil and trySpecies[parents.allele1] == nil then
+        if (catalog.referencePairBySpecies[parents.allele1] == nil
+            or catalog.referenceDronesBySpecies[parents.allele1].qty <= 1
+            or catalog.princessesBySpecies[parents.allele1] == nil)
+            and trySpecies[parents.allele1] == nil then
           table.insert(trySpecies, parents.allele1)
           trySpecies[parents.allele1] = true
         end
@@ -840,7 +847,10 @@ function main(tArgs)
   clearApiary(inv, apiary)
   clearAnalyzer(inv)
   local catalog = catalogBees(inv, scorers)
-
+  while #catalog.queens > 0 do
+    breedQueen(inv, apiary, catalog.queens[1])
+    catalog = catalogBees(inv, scorers)
+  end
   if targetSpecies ~= nil then
     targetSpecies = tArgs[1]:sub(1,1):upper()..tArgs[1]:sub(2):lower()
     if beeNames[targetSpecies] == true then
