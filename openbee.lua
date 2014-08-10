@@ -672,7 +672,10 @@ function analyzeBee(inv, slot)
     useAnalyzer = false
     return nil
   end
-  printBee(fixBee(inv.getStackInSlot(freeSlot)))
+  local bee = inv.getStackInSlot(freeSlot)
+  if bee ~= nil then
+    printBee(fixBee(bee))
+  end
   return freeSlot
 end
 
