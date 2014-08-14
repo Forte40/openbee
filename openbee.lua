@@ -26,7 +26,9 @@ if config == nil then
     ["chestSide"] = "top",
     ["chestDir"] = "up",
     ["productDir"] = "down",
-    ["analyzerDir"] = "east"
+    ["analyzerDir"] = "east",
+    ["monDir"] = "monitor_0",
+    ["useMonitor"] = "true"
   }
   saveFile("bee.config", config)
 end
@@ -84,11 +86,45 @@ function setupLog()
   return string.format("bee.%d.log", logCount)
 end
 
+function monWriteLine(msg)
+  if config.useMonitor then
+    mon = peripheral.wrap(config.monDir)
+    mon.write(msg)
+  end
+  if monWriteLineActive == nil or monWriteLineActive == false then
+    monWriteLineActive = true
+  end
+end
+
+function monNewLine()
+ if config.useMonitor then
+    mon = peripheral.wrap(config.monDir)
+    if monLines == nil then
+      monLines = 0
+    end
+	
+	if monWriteLineActive then
+	  monLines = monLines +1
+	  monWriteLineActive = false
+	end
+	
+    monw, monh = mon.getSize()
+    
+    if monh <= monLines then
+      mon.scroll(1)
+      monLines = monh -1
+    end
+  
+    mon.setCursorPos(1, monLines+1)
+  end
+end
+
 function log(msg)
   msg = msg or ""
   logFile.write(tostring(msg))
   logFile.flush()
   io.write(msg)
+  monWriteLine(msg)
 end
 
 function logLine(...)
@@ -98,10 +134,12 @@ function logLine(...)
     end
     logFile.write(msg)
     io.write(msg)
+    monWriteLine(msg)
   end
   logFile.write("\n")
   logFile.flush()
   io.write("\n")
+  monNewLine()
 end
 
 function getPeripherals()
