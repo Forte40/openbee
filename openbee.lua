@@ -1,7 +1,7 @@
 local version = {
   ["major"] = 2,
   ["minor"] = 2,
-  ["patch"] = 0
+  ["patch"] = 1
 }
 
 function loadFile(fileName)
@@ -146,11 +146,11 @@ function fixName(name)
 end
 
 function fixBee(bee)
-  if bee.beeInfo ~= nil then
-    bee.beeInfo.displayName = fixName(bee.beeInfo.displayName)
-    if bee.beeInfo.isAnalyzed then
-      bee.beeInfo.active.species = fixName(bee.beeInfo.active.species)
-      bee.beeInfo.inactive.species = fixName(bee.beeInfo.inactive.species)
+  if bee.individual ~= nil then
+    bee.individual.displayName = fixName(bee.individual.displayName)
+    if bee.individual.isAnalyzed then
+      bee.individual.active.species.name = fixName(bee.individual.active.species.name)
+      bee.individual.inactive.species.name = fixName(bee.individual.inactive.species.name)
     end
   end
   return bee
@@ -166,22 +166,22 @@ function fixParents(parents)
 end
 
 function beeName(bee)
-  if bee.beeInfo.active then
-    return bee.slot .. "=" .. bee.beeInfo.active.species:sub(1,3) .. "-" ..
-                              bee.beeInfo.inactive.species:sub(1,3)
+  if bee.individual.active then
+    return bee.slot .. "=" .. bee.individual.active.species.name:sub(1,3) .. "-" ..
+                              bee.individual.inactive.species.name:sub(1,3)
   else
-    return bee.slot .. "=" .. bee.beeInfo.displayName:sub(1,3)
+    return bee.slot .. "=" .. bee.individual.displayName:sub(1,3)
   end
 end
 
 function printBee(bee)
-  if bee.beeInfo.isAnalyzed then
-    local active = bee.beeInfo.active
-    local inactive = bee.beeInfo.inactive
-    if active.species ~= inactive.species then
-      log(string.format("%s-%s", active.species, inactive.species))
+  if bee.individual.isAnalyzed then
+    local active = bee.individual.active
+    local inactive = bee.individual.inactive
+    if active.species.name ~= inactive.species.name then
+      log(string.format("%s-%s", active.species.name, inactive.species.name))
     else
-      log(active.species)
+      log(active.species.name)
     end
     if bee.rawName == "item.beedronege" then
       log(" Drone")
@@ -272,24 +272,24 @@ end
 
 -- percent chance of 2 bees turning into target species
 function mutateBeeChance(mutations, princess, drone, targetSpecies)
-  if princess.beeInfo.isAnalyzed then
-    if drone.beeInfo.isAnalyzed then
-      return (mutateSpeciesChance(mutations, princess.beeInfo.active.species, drone.beeInfo.active.species, targetSpecies) / 4
-             +mutateSpeciesChance(mutations, princess.beeInfo.inactive.species, drone.beeInfo.active.species, targetSpecies) / 4
-             +mutateSpeciesChance(mutations, princess.beeInfo.active.species, drone.beeInfo.inactive.species, targetSpecies) / 4
-             +mutateSpeciesChance(mutations, princess.beeInfo.inactive.species, drone.beeInfo.inactive.species, targetSpecies) / 4)
+  if princess.individual.isAnalyzed then
+    if drone.individual.isAnalyzed then
+      return (mutateSpeciesChance(mutations, princess.individual.active.species.name, drone.individual.active.species.name, targetSpecies) / 4
+             +mutateSpeciesChance(mutations, princess.individual.inactive.species.name, drone.individual.active.species.name, targetSpecies) / 4
+             +mutateSpeciesChance(mutations, princess.individual.active.species.name, drone.individual.inactive.species.name, targetSpecies) / 4
+             +mutateSpeciesChance(mutations, princess.individual.inactive.species.name, drone.individual.inactive.species.name, targetSpecies) / 4)
     end
-  elseif drone.beeInfo.isAnalyzed then
+  elseif drone.individual.isAnalyzed then
   else
-    return mutateSpeciesChance(princess.beeInfo.displayName, drone.beeInfo.displayName, targetSpecies)
+    return mutateSpeciesChance(princess.individual.displayName, drone.individual.displayName, targetSpecies)
   end
 end
 
 function buildScoring()
   function makeNumberScorer(trait, default)
     local function scorer(bee)
-      if bee.beeInfo.isAnalyzed then
-        return (bee.beeInfo.active[trait] + bee.beeInfo.inactive[trait]) / 2
+      if bee.individual.isAnalyzed then
+        return (bee.individual.active[trait] + bee.individual.inactive[trait]) / 2
       else
         return default
       end
@@ -299,8 +299,8 @@ function buildScoring()
 
   function makeBooleanScorer(trait)
     local function scorer(bee)
-      if bee.beeInfo.isAnalyzed then
-        return ((bee.beeInfo.active[trait] and 1 or 0) + (bee.beeInfo.inactive[trait] and 1 or 0)) / 2
+      if bee.individual.isAnalyzed then
+        return ((bee.individual.active[trait] and 1 or 0) + (bee.individual.inactive[trait] and 1 or 0)) / 2
       else
         return 0
       end
@@ -310,8 +310,8 @@ function buildScoring()
 
   function makeTableScorer(trait, default, lookup)
     local function scorer(bee)
-      if bee.beeInfo.isAnalyzed then
-        return ((lookup[bee.beeInfo.active[trait]] or default) + (lookup[bee.beeInfo.inactive[trait]] or default)) / 2
+      if bee.individual.isAnalyzed then
+        return ((lookup[bee.individual.active[trait]] or default) + (lookup[bee.individual.inactive[trait]] or default)) / 2
       else
         return default
       end
@@ -361,9 +361,9 @@ function buildScoring()
     ["humidityTolerance"] = makeTableScorer("humidityTolerance", 0, scoresTolerance),
     ["flowerProvider"] = makeTableScorer("flowerProvider", 0, scoresFlowerProvider),
     ["territory"] = function(bee)
-      if bee.beeInfo.isAnalyzed then
-        return ((bee.beeInfo.active.territory[1] * bee.beeInfo.active.territory[2] * bee.beeInfo.active.territory[3]) +
-                     (bee.beeInfo.inactive.territory[1] * bee.beeInfo.inactive.territory[2] * bee.beeInfo.inactive.territory[3])) / 2
+      if bee.individual.isAnalyzed then
+        return ((bee.individual.active.territory[1] * bee.individual.active.territory[2] * bee.individual.active.territory[3]) +
+                     (bee.individual.inactive.territory[1] * bee.individual.inactive.territory[2] * bee.individual.inactive.territory[3])) / 2
       else
         return 0
       end
@@ -412,24 +412,24 @@ end
 -- cataloging functions ---------------
 
 function addBySpecies(beesBySpecies, bee)
-  if bee.beeInfo.isAnalyzed then
-    if beesBySpecies[bee.beeInfo.active.species] == nil then
-      beesBySpecies[bee.beeInfo.active.species] = {bee}
+  if bee.individual.isAnalyzed then
+    if beesBySpecies[bee.individual.active.species.name] == nil then
+      beesBySpecies[bee.individual.active.species.name] = {bee}
     else
-      table.insert(beesBySpecies[bee.beeInfo.active.species], bee)
+      table.insert(beesBySpecies[bee.individual.active.species.name], bee)
     end
-    if bee.beeInfo.inactive.species ~= bee.beeInfo.active.species then
-      if beesBySpecies[bee.beeInfo.inactive.species] == nil then
-        beesBySpecies[bee.beeInfo.inactive.species] = {bee}
+    if bee.individual.inactive.species.name ~= bee.individual.active.species.name then
+      if beesBySpecies[bee.individual.inactive.species.name] == nil then
+        beesBySpecies[bee.individual.inactive.species.name] = {bee}
       else
-        table.insert(beesBySpecies[bee.beeInfo.inactive.species], bee)
+        table.insert(beesBySpecies[bee.individual.inactive.species.name], bee)
       end
     end
   else
-    if beesBySpecies[bee.beeInfo.displayName] == nil then
-      beesBySpecies[bee.beeInfo.displayName] = {bee}
+    if beesBySpecies[bee.individual.displayName] == nil then
+      beesBySpecies[bee.individual.displayName] = {bee}
     else
-      table.insert(beesBySpecies[bee.beeInfo.displayName], bee)
+      table.insert(beesBySpecies[bee.individual.displayName], bee)
     end
   end
 end
@@ -452,9 +452,9 @@ function catalogBees(inv, scorers)
     local analyzeCount = 0
     local bees = inv.getAllStacks()
     for slot, bee in pairs(bees) do
-      if bee.beeInfo == nil then
+      if bee.individual == nil then
         inv.pushItem(config.chestDir, slot)
-      elseif not bee.beeInfo.isAnalyzed then
+      elseif not bee.individual.isAnalyzed then
         analyzeBee(inv, slot)
         analyzeCount = analyzeCount + 1
       end
@@ -471,7 +471,7 @@ function catalogBees(inv, scorers)
   if useReferenceBees then
     for slot = 1, #bees do
       local bee = bees[slot]
-      if bee.beeInfo ~= nil then
+      if bee.individual ~= nil then
         fixBee(bee)
         local referenceBySpecies = nil
         if bee.rawName == "item.beedronege" then -- drones
@@ -483,8 +483,8 @@ function catalogBees(inv, scorers)
         else
           isDrone = nil
         end
-        if referenceBySpecies ~= nil and bee.beeInfo.isAnalyzed and bee.beeInfo.active.species == bee.beeInfo.inactive.species then
-          local species = bee.beeInfo.active.species
+        if referenceBySpecies ~= nil and bee.individual.isAnalyzed and bee.individual.active.species.name == bee.individual.inactive.species.name then
+          local species = bee.individual.active.species.name
           if referenceBySpecies[species] == nil or
               compareBees(scorers, bee, referenceBySpecies[species]) then
             if referenceBySpecies[species] == nil then
@@ -530,40 +530,40 @@ function catalogBees(inv, scorers)
     --   a both reference princess and drone
     if (
       bee.rawName == "item.beedronege" and
-      bee.beeInfo.isAnalyzed and (
-        catalog.referencePrincessesBySpecies[bee.beeInfo.active.species] ~= nil and
-        catalog.referenceDronesBySpecies[bee.beeInfo.active.species] ~= nil and
-        catalog.referencePrincessesBySpecies[bee.beeInfo.inactive.species] ~= nil and
-        catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species] ~= nil
+      bee.individual.isAnalyzed and (
+        catalog.referencePrincessesBySpecies[bee.individual.active.species.name] ~= nil and
+        catalog.referenceDronesBySpecies[bee.individual.active.species.name] ~= nil and
+        catalog.referencePrincessesBySpecies[bee.individual.inactive.species.name] ~= nil and
+        catalog.referenceDronesBySpecies[bee.individual.inactive.species.name] ~= nil
       )
     ) then
-      local activeDroneTraits = betterTraits(scorers, catalog.referenceDronesBySpecies[bee.beeInfo.active.species], bee)
-      local inactiveDroneTraits = betterTraits(scorers, catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species], bee)
+      local activeDroneTraits = betterTraits(scorers, catalog.referenceDronesBySpecies[bee.individual.active.species.name], bee)
+      local inactiveDroneTraits = betterTraits(scorers, catalog.referenceDronesBySpecies[bee.individual.inactive.species.name], bee)
       if #activeDroneTraits > 0 or #inactiveDroneTraits > 0 then
         -- keep current bee because it has some trait that is better
         -- manipulate reference bee to have better yet less important attribute
         -- this ditches more bees while keeping at least one with the attribute
         -- the cataloging step will fix the manipulation
         for i, trait in ipairs(activeDroneTraits) do
-          catalog.referenceDronesBySpecies[bee.beeInfo.active.species].beeInfo.active[trait] = bee.beeInfo.active[trait]
-          catalog.referenceDronesBySpecies[bee.beeInfo.active.species].beeInfo.inactive[trait] = bee.beeInfo.inactive[trait]
+          catalog.referenceDronesBySpecies[bee.individual.active.species.name].individual.active[trait] = bee.individual.active[trait]
+          catalog.referenceDronesBySpecies[bee.individual.active.species.name].individual.inactive[trait] = bee.individual.inactive[trait]
         end
         for i, trait in ipairs(inactiveDroneTraits) do
-          catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species].beeInfo.active[trait] = bee.beeInfo.active[trait]
-          catalog.referenceDronesBySpecies[bee.beeInfo.inactive.species].beeInfo.inactive[trait] = bee.beeInfo.inactive[trait]
+          catalog.referenceDronesBySpecies[bee.individual.inactive.species.name].individual.active[trait] = bee.individual.active[trait]
+          catalog.referenceDronesBySpecies[bee.individual.inactive.species.name].individual.inactive[trait] = bee.individual.inactive[trait]
         end
       else
         -- keep 1 extra drone around if purebreed
         -- this speeds up breeding by not ditching drones you just breed from reference bees
         -- when the reference bee drone output is still mutating
         local ditchDrone = nil
-        if bee.beeInfo.active.species == bee.beeInfo.inactive.species then
-          if extraDronesBySpecies[bee.beeInfo.active.species] == nil then
-            extraDronesBySpecies[bee.beeInfo.active.species] = bee
+        if bee.individual.active.species.name == bee.individual.inactive.species.name then
+          if extraDronesBySpecies[bee.individual.active.species.name] == nil then
+            extraDronesBySpecies[bee.individual.active.species.name] = bee
             bee = nil
-          elseif compareBees(bee, extraDronesBySpecies[bee.beeInfo.active.species]) then
-            ditchDrone = extraDronesBySpecies[bee.beeInfo.active.species]
-            extraDronesBySpecies[bee.beeInfo.active.species] = bee
+          elseif compareBees(bee, extraDronesBySpecies[bee.individual.active.species.name]) then
+            ditchDrone = extraDronesBySpecies[bee.individual.active.species.name]
+            extraDronesBySpecies[bee.individual.active.species.name] = bee
             bee = ditchDrone
           end
         end
@@ -779,15 +779,15 @@ function selectPair(mutations, scorers, catalog, targetSpecies)
 end
 
 function isPureBred(bee1, bee2, targetSpecies)
-  if bee1.beeInfo.isAnalyzed and bee2.beeInfo.isAnalyzed then
-    if bee1.beeInfo.active.species == bee1.beeInfo.inactive.species and
-        bee2.beeInfo.active.species == bee2.beeInfo.inactive.species and
-        bee1.beeInfo.active.species == bee2.beeInfo.active.species and
-        (targetSpecies == nil or bee1.beeInfo.active.species == targetSpecies) then
+  if bee1.individual.isAnalyzed and bee2.individual.isAnalyzed then
+    if bee1.individual.active.species.name == bee1.individual.inactive.species.name and
+        bee2.individual.active.species.name == bee2.individual.inactive.species.name and
+        bee1.individual.active.species.name == bee2.individual.active.species.name and
+        (targetSpecies == nil or bee1.individual.active.species.name == targetSpecies) then
       return true
     end
-  elseif bee1.beeInfo.isAnalyzed == false and bee2.beeInfo.isAnalyzed == false then
-    if bee1.beeInfo.displayName == bee2.beeInfo.displayName then
+  elseif bee1.individual.isAnalyzed == false and bee2.individual.isAnalyzed == false then
+    if bee1.individual.displayName == bee2.individual.displayName then
       return true
     end
   end
