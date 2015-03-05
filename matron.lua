@@ -23,7 +23,7 @@ end
 -- find apiaries
 local sides = peripheral.getNames()
 for _, side in ipairs(sides) do
-  if peripheral.getType(side) == "apiculture_0" then
+  if peripheral.getType(side):sub(1,10) == "apiculture" then
     table.insert(apiaries, peripheral.wrap(side))
   end
 end
@@ -41,23 +41,23 @@ while true do
     local inv = apiary.getAllStacks()
     local foundDrone = false
     local foundPrincess = false
-    for slot, beeData in pairs(inv) do
+    for slot, bee in pairs(inv) do
       if slot >= 3 and slot <= 9 then
-        if beeData.rawName == "item.beeprincessge" then
+        if bee.raw_name == "item.for.beeprincessge" then
           apiary.pushItemIntoSlot(chestDir, slot, 1, princessSlot)
           foundPrincess = true
-        elseif foundDrone == false and beeData.rawName == "item.beedronege" then
+        elseif foundDrone == false and bee.raw_name == "item.for.beedronege" then
           apiary.pushItemIntoSlot(chestDir, slot, 1, droneSlot)
           apiary.pushItemIntoSlot(chestDir, slot, 64)
           foundDrone = true
         else
           apiary.pushItemIntoSlot(chestDir, slot, 64)
-          if beeData.rawName ~= "item.beedronege" then
+          if bee.raw_name ~= "item.for.beedronege" then
             statChange = true
-            if stats[beeData.name] ~= nil then
-              stats[beeData.name] = stats[beeData.name] + beeData.qty
+            if stats[bee.name] ~= nil then
+              stats[bee.name] = stats[bee.name] + bee.qty
             else
-              stats[beeData.name] = beeData.qty
+              stats[bee.name] = bee.qty
             end
           end
         end
