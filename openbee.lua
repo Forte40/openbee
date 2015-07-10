@@ -132,6 +132,21 @@ function choose(list1, list2)
   return newList
 end
 
+-- fix for yet another API change from openp
+function getAllBees(inv)
+  local notbees = inv.getAllStacks()
+  local bees = {}
+  for slot, bee in pairs(notbees) do
+    bees[slot] = bee.all()
+  end
+  return bees
+end
+
+function getBeeInSlot(inv, slot)
+  local notbee = inv.getStackInSlot(slot)
+  return notbee.all()
+end
+
 -- fix for some versions returning bees.species.*
 local nameFix = {}
 function fixName(name)
@@ -450,7 +465,7 @@ function catalogBees(inv, scorers)
   logLine(string.format("scanning %d slots", inv.size))
   if useAnalyzer == true then
     local analyzeCount = 0
-    local bees = inv.getAllStacks()
+    local bees = getAllBees(inv)
     for slot, bee in pairs(bees) do
       if bee.individual == nil then
         inv.pushItem(config.chestDir, slot)
@@ -467,7 +482,7 @@ function catalogBees(inv, scorers)
   local referenceDroneCount = 0
   local referencePrincessCount = 0
   local isDrone = nil
-  local bees = inv.getAllStacks()
+  local bees = getAllBees(inv)
   if useReferenceBees then
     for slot = 1, #bees do
       local bee = bees[slot]
@@ -519,7 +534,7 @@ function catalogBees(inv, scorers)
     logLine()
   end
   -- phase 2 -- ditch obsolete drones
-  bees = inv.getAllStacks()
+  bees = getAllBees(inv)
   local extraDronesBySpecies = {}
   local ditchSlot = 1
   for slot = 1 + referenceBeeCount, #bees do
@@ -577,7 +592,7 @@ function catalogBees(inv, scorers)
     end
   end
   -- phase 3 -- catalog bees
-  bees = inv.getAllStacks()
+  bees = getAllBees(inv)
   for slot, bee in pairs(bees) do
     fixBee(bee)
     bee.slot = slot
@@ -606,14 +621,14 @@ end
 -- interaction functions --------------
 
 function clearApiary(inv, apiary)
-  local bees = apiary.getAllStacks()
+  local bees = getAllBees(apiary)
   -- wait for queen to die
   if (bees[1] ~= nil and bees[1].raw_name == "item.for.beequeenge")
       or (bees[1] ~= nil and bees[2] ~= nil) then
     log("waiting for apiary")
     while true do
       sleep(5)
-      bees = apiary.getAllStacks()
+      bees = getAllBees(apiary)
       if bees[1] == nil then
         break
       end
@@ -634,7 +649,7 @@ function clearApiary(inv, apiary)
 end
 
 function clearAnalyzer(inv)
-  local bees = inv.getAllStacks()
+  local bees = getAllBees(inv)
   if #bees == inv.size then
     error("chest is full")
   end
@@ -654,7 +669,7 @@ function analyzeBee(inv, slot)
   if inv.pushItem(config.analyzerDir, slot, 64, 3) > 0 then
     while true do
       -- constantly check in case of inventory manipulation by player
-      local bees = inv.getAllStacks()
+      local bees = getAllBees(inv)
       freeSlot = nil
       for i = 1, inv.size do
         if bees[i] == nil then
@@ -672,7 +687,7 @@ function analyzeBee(inv, slot)
     useAnalyzer = false
     return nil
   end
-  local bee = inv.getStackInSlot(freeSlot)
+  local bee = getBeeInSlot(inv, freeSlot)
   if bee ~= nil then
     printBee(fixBee(bee))
   end
