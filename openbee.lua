@@ -105,7 +105,20 @@ function logLine(...)
 end
 
 function getPeripherals()
-  return peripheral.wrap(config.chestSide), peripheral.wrap(config.apiarySide)
+  local names = table.concat(peripheral.getNames(), ", ")
+  local chestPeripheral = peripheral.wrap(config.chestSide)
+  if chestPeripheral == nil then
+    error("Bee chest not found at " .. config.chestSide .. ".  Valid config values are " .. names .. ".")
+  end
+  local apiaryPeripheral = peripheral.wrap(config.apiarySide)
+  if apiaryPeripheral == nil then
+    error("Apiary not found at " .. config.apiarySide .. ".  Valid config values are " .. names .. ".")
+  end
+  -- check config directions
+  if not pcall(function () chestPeripheral.pullItem(config.analyzerDir, 9) end) then
+    error("Analyzer direction incorrect.  Direction should be relative to bee chest.")
+  end
+  return chestPeripheral, apiaryPeripheral
 end
 
 -- utility functions ------------------
