@@ -143,8 +143,11 @@ function getAllBees(inv)
 end
 
 function getBeeInSlot(inv, slot)
-  local notbee = inv.getStackInSlot(slot)
-  return notbee.all()
+  local bee = inv.getStackInSlot(slot)
+  if bee ~= nil then
+    bee = bee.all()
+  end
+  return bee
 end
 
 -- fix for some versions returning bees.species.*
