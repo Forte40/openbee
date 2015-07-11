@@ -116,7 +116,8 @@ function getPeripherals()
   end
   -- check config directions
   if not pcall(function () chestPeripheral.pullItem(config.analyzerDir, 9) end) then
-    error("Analyzer direction incorrect.  Direction should be relative to bee chest.")
+    logLine("Analyzer direction incorrect.  Direction should be relative to bee chest.")
+    useAnalyzer = false
   end
   return chestPeripheral, apiaryPeripheral
 end
