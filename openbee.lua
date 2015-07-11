@@ -662,6 +662,9 @@ function clearApiary(inv, apiary)
 end
 
 function clearAnalyzer(inv)
+  if not useAnalyzer then
+    return
+  end
   local bees = getAllBees(inv)
   if #bees == inv.size then
     error("chest is full")
