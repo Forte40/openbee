@@ -20,6 +20,16 @@ function printStats()
   end
 end
 
+-- fix for yet another API change from openp
+function getAllBees(inv)
+  local notbees = inv.getAllStacks()
+  local bees = {}
+  for slot, bee in pairs(notbees) do
+    bees[slot] = bee.all()
+  end
+  return bees
+end
+
 -- find apiaries
 local sides = peripheral.getNames()
 for _, side in ipairs(sides) do
@@ -38,7 +48,7 @@ while true do
   rs.setOutput(redstoneSide, true)
   for i, apiary in ipairs(apiaries) do
     -- look for outputs
-    local inv = apiary.getAllStacks()
+    local inv = getAllBees(apiary)
     local foundDrone = false
     local foundPrincess = false
     for slot, bee in pairs(inv) do
