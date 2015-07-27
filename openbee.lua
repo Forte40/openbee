@@ -26,7 +26,10 @@ if config == nil then
     ["chestSide"] = "top",
     ["chestDir"] = "up",
     ["productDir"] = "down",
-    ["analyzerDir"] = "east"
+    ["analyzerDir"] = "east",
+    ["ignoreSpecies"] = {
+      "Leporine"
+    }
   }
   saveFile("bee.config", config)
 end
@@ -264,11 +267,25 @@ function buildTargetSpeciesList(catalog, apiary)
   local targetSpeciesList = {}
   local parentss = apiary.getBeeBreedingData()
   for _, parents in pairs(parentss) do
-    if catalog.princessesBySpecies[parents.allele1] ~= nil and
-        catalog.princessesBySpecies[parents.allele2] ~= nil and
-        (
+    local skip = false
+    for i, ignoreSpecies in ipairs(config.ignoreSpecies) do
+      if parents.result == ignoreSpecies then
+        skip = true
+        break
+      end
+    end
+    if not skip and
+        ( -- skip if reference pair exists
           catalog.referencePrincessesBySpecies[parents.result] == nil or
           catalog.referenceDronesBySpecies[parents.result] == nil
+        ) and
+        ( -- princess 1 and drone 2 available
+          catalog.princessesBySpecies[parents.allele1] ~= nil and
+          catalog.dronesBySpecies[parents.allele2] ~= nil
+        ) or
+        ( -- princess 2 and drone 1 available
+          catalog.princessesBySpecies[parents.allele2] ~= nil and
+          catalog.dronesBySpecies[parents.allele1] ~= nil
         ) then
       table.insert(targetSpeciesList, parents.result)
     end
@@ -846,7 +863,7 @@ function breedTargetSpecies(mutations, inv, apiary, scorers, targetSpecies)
           catalog = catalogBees(inv, scorers)
         end
       else
-        log("Please add more bee species and press [Enter]")
+        log(string.format("Please add more bee species for %s and press [Enter]"), targetSpecies)
         io.read("*l")
         catalog = catalogBees(inv, scorers)
       end
