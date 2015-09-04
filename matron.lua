@@ -50,6 +50,9 @@ while true do
     -- look for outputs
     local inv = getAllBees(apiary)
     local foundDrone = false
+    if inv[2] ~= nil then
+      foundDrone = true
+    end
     local foundPrincess = false
     for slot, bee in pairs(inv) do
       if slot >= 3 and slot <= 9 then
