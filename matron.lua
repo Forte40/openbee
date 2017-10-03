@@ -9,6 +9,7 @@ local wait = 5
 
 local apiaries = {}
 local stats = {["Generations"] = 0}
+local apiaryHeuristic = 'apiculture'
 
 function printStats()
   term.clear()
@@ -33,7 +34,7 @@ end
 -- find apiaries
 local sides = peripheral.getNames()
 for _, side in ipairs(sides) do
-  if peripheral.getType(side):sub(1,10) == "apiculture" then
+  if peripheral.getType(side):find(apiaryHeuristic) then
     table.insert(apiaries, peripheral.wrap(side))
   end
 end
