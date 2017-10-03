@@ -666,7 +666,9 @@ function clearApiary(inv, apiary)
     end
   end
   logLine()
-  for slot = 3, 9 do
+  -- First two slots are assumed Princess/Drone.
+  -- All other slots should be checked for bees.
+  for slot = 3, apiary.getInventorySize() do
     local bee = bees[slot]
     if bee ~= nil then
       if bee.raw_name == "item.for.beedronege" or bee.raw_name == "item.for.beeprincessge" then
