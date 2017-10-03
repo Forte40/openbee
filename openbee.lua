@@ -34,6 +34,10 @@ if config == nil then
   saveFile("bee.config", config)
 end
 
+local BEE_DRONE = 'item.for.beedronege'
+local BEE_PRINCESS = 'item.for.beeprincessge'
+local BEE_QUEEN = 'item.for.beequeenge'
+
 local useAnalyzer = true
 local useReferenceBees = true
 
@@ -214,12 +218,14 @@ function printBee(bee)
     else
       log(active.species.name)
     end
-    if bee.raw_name == "item.for.beedronege" then
+    if bee.raw_name == BEE_DRONE then
       log(" Drone")
-    elseif bee.raw_name == "item.for.beeprincessge" then
+    elseif bee.raw_name == BEE_PRINCESS then
       log(" Princess")
-    else
+    elseif bee.raw_name == BEE_QUEEN then
       log(" Queen")
+    else
+      log(" ??Error")
     end
     --log((active.nocturnal and " Nocturnal" or " "))
     --log((active.tolerantFlyer and " Flyer" or " "))
@@ -519,10 +525,10 @@ function catalogBees(inv, scorers)
       if bee.individual ~= nil then
         fixBee(bee)
         local referenceBySpecies = nil
-        if bee.raw_name == "item.for.beedronege" then -- drones
+        if bee.raw_name == BEE_DRONE then -- drones
           isDrone = true
           referenceBySpecies = catalog.referenceDronesBySpecies
-        elseif bee.raw_name == "item.for.beeprincessge" then -- princess
+        elseif bee.raw_name == BEE_PRINCESS then -- princess
           isDrone = false
           referenceBySpecies = catalog.referencePrincessesBySpecies
         else
@@ -574,7 +580,7 @@ function catalogBees(inv, scorers)
     -- remove analyzed drones where both the active and inactive species have
     --   a both reference princess and drone
     if (
-      bee.raw_name == "item.for.beedronege" and
+      bee.raw_name == BEE_DRONE and
       bee.individual.isAnalyzed and (
         catalog.referencePrincessesBySpecies[bee.individual.active.species.name] ~= nil and
         catalog.referenceDronesBySpecies[bee.individual.active.species.name] ~= nil and
@@ -627,17 +633,17 @@ function catalogBees(inv, scorers)
     fixBee(bee)
     bee.slot = slot
     if slot > referenceBeeCount then
-      if bee.raw_name == "item.for.beedronege" then -- drones
+      if bee.raw_name == BEE_DRONE then -- drones
         table.insert(catalog.drones, bee)
         addBySpecies(catalog.dronesBySpecies, bee)
-      elseif bee.raw_name == "item.for.beeprincessge" then -- princess
+      elseif bee.raw_name == BEE_PRINCESS then -- princess
         table.insert(catalog.princesses, bee)
         addBySpecies(catalog.princessesBySpecies, bee)
-      elseif bee.id == 13339 then -- queens
+      elseif bee.raw_name == BEE_QUEEN then -- queens
         table.insert(catalog.queens, bee)
       end
     else
-      if bee.raw_name == "item.for.beedronege" and bee.qty > 1 then
+      if bee.raw_name == BEE_DRONE and bee.qty > 1 then
         table.insert(catalog.drones, bee)
         addBySpecies(catalog.dronesBySpecies, bee)
       end
@@ -653,7 +659,7 @@ end
 function clearApiary(inv, apiary)
   local bees = getAllBees(apiary)
   -- wait for queen to die
-  if (bees[1] ~= nil and bees[1].raw_name == "item.for.beequeenge")
+  if (bees[1] ~= nil and bees[1].raw_name == BEE_QUEEN)
       or (bees[1] ~= nil and bees[2] ~= nil) then
     log("waiting for apiary")
     while true do
@@ -669,7 +675,7 @@ function clearApiary(inv, apiary)
   for slot = 3, 9 do
     local bee = bees[slot]
     if bee ~= nil then
-      if bee.raw_name == "item.for.beedronege" or bee.raw_name == "item.for.beeprincessge" then
+      if bee.raw_name == BEE_DRONE or bee.raw_name == BEE_PRINCESS then
         apiary.pushItem(config.chestDir, slot, 64)
       else
         apiary.pushItem(config.productDir, slot, 64)
